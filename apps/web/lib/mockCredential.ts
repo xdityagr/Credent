@@ -1,19 +1,28 @@
-import type { VerifiableCredential, AgeCredentialClaims } from "@/types/credential";
+import type {
+  AgeCredentialClaims,
+  VerifiableCredential,
+} from "@/types/credential";
 
-export const mockAgeCredential: VerifiableCredential<AgeCredentialClaims> = {
-  id: "credent-age-demo-001",
-  type: "AGE_VERIFICATION",
+export function createMockAgeCredential(
+  walletAddress: string
+): VerifiableCredential<AgeCredentialClaims> {
+  return {
+    id: "credent-age-demo-001",
 
-  issuer: "did:credent:demo-issuer",
+    type: "AGE_VERIFICATION",
 
-  subject: {
-    id: "wallet:demo-user",
-  },
+    issuer: "did:credent:demo-issuer",
 
-  claims: {
-    dateOfBirth: "2000-01-15",
-  },
+    subject: {
+      id: walletAddress,
+    },
 
-  issuedAt: "2026-10-01T00:00:00.000Z",
-  expiresAt: "2027-10-01T00:00:00.000Z",
-};
+    claims: {
+      dateOfBirth: "2000-01-15",
+    },
+
+    issuedAt: "2026-10-01T00:00:00.000Z",
+
+    expiresAt: "2027-10-01T00:00:00.000Z",
+  };
+}

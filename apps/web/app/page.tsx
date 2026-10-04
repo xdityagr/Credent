@@ -1,9 +1,25 @@
 "use client";
 
+import { useMemo } from "react";
+import { useWallet } from "@solana/wallet-adapter-react";
+
 import ConnectWalletButton from "@/components/ConnectWalletButton";
 import WalletStatus from "@/components/WalletStatus";
+import { createMockAgeCredential } from "@/lib/mockCredential";
 
 export default function Home() {
+  const { connected, publicKey } = useWallet();
+
+  const walletAddress = publicKey?.toBase58();
+
+  const credential = useMemo(() => {
+    if (!walletAddress) {
+      return null;
+    }
+
+    return createMockAgeCredential(walletAddress);
+  }, [walletAddress]);
+
   return (
     <main className="min-h-screen bg-black text-white">
       {/* Navigation */}
@@ -16,7 +32,7 @@ export default function Home() {
       </nav>
 
       {/* Hero */}
-      <section className="mx-auto flex min-h-[80vh] max-w-6xl flex-col items-center justify-center px-6 text-center">
+      <section className="mx-auto flex min-h-[80vh] max-w-6xl flex-col items-center justify-center px-6 py-16 text-center">
         <div className="max-w-3xl">
           <p className="mb-6 text-sm uppercase tracking-[0.3em] text-white/40">
             Privacy-preserving identity
@@ -37,12 +53,114 @@ export default function Home() {
           </p>
         </div>
 
-        {/* Wallet Status */}
+        {/* Wallet */}
         <div className="mt-12 w-full max-w-xl">
           <WalletStatus />
         </div>
 
-        {/* Coming Soon */}
+        {/* Credential */}
+        {connected && credential ? (
+          <div className="mt-6 w-full max-w-xl rounded-2xl border border-white/10 bg-white/5 p-6 text-left">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-white/40">Credential</p>
+
+                <h2 className="mt-2 text-xl font-medium">
+                  Age Verification
+                </h2>
+              </div>
+
+              <span className="rounded-full border border-green-400/20 bg-green-400/10 px-3 py-1 text-xs text-green-400">
+                Valid
+              </span>
+            </div>
+
+            <div className="mt-6 space-y-4 text-sm">
+              <div className="flex items-start justify-between gap-6">
+                <span className="text-white/40">Type</span>
+
+                <span className="font-mono text-xs">
+                  {credential.type}
+                </span>
+              </div>
+
+              <div className="flex items-start justify-between gap-6">
+                <span className="text-white/40">Credential ID</span>
+
+                <span className="max-w-[250px] break-all text-right font-mono text-xs text-white/70">
+                  {credential.id}
+                </span>
+              </div>
+
+              <div className="flex items-start justify-between gap-6">
+                <span className="text-white/40">Issuer</span>
+
+                <span className="max-w-[250px] break-all text-right font-mono text-xs text-white/70">
+                  {credential.issuer}
+                </span>
+              </div>
+
+              <div className="flex items-start justify-between gap-6">
+                <span className="text-white/40">Subject wallet</span>
+
+                <span className="max-w-[250px] break-all text-right font-mono text-xs text-white/70">
+                  {credential.subject.id}
+                </span>
+              </div>
+
+              <div className="flex items-start justify-between gap-6">
+                <span className="text-white/40">Date of Birth</span>
+
+                <span className="font-mono text-xs">
+                  {credential.claims.dateOfBirth}
+                </span>
+              </div>
+
+              <div className="flex items-start justify-between gap-6">
+                <span className="text-white/40">Issued</span>
+
+                <span className="text-white/70">
+                  {new Date(
+                    credential.issuedAt
+                  ).toLocaleDateString()}
+                </span>
+              </div>
+
+              {credential.expiresAt && (
+                <div className="flex items-start justify-between gap-6">
+                  <span className="text-white/40">Expires</span>
+
+                  <span className="text-white/70">
+                    {new Date(
+                      credential.expiresAt
+                    ).toLocaleDateString()}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Privacy message */}
+            <div className="mt-6 rounded-xl border border-white/10 bg-black/40 p-4">
+              <p className="text-sm font-medium">
+                🔐 Privacy layer coming next
+              </p>
+
+              <p className="mt-2 text-xs leading-5 text-white/40">
+                The credential is now associated with the connected wallet.
+                The next step is to prove the age requirement without revealing
+                the underlying date of birth.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-6 w-full max-w-xl rounded-2xl border border-dashed border-white/10 p-8">
+            <p className="text-sm text-white/40">
+              Connect your wallet to view your credential.
+            </p>
+          </div>
+        )}
+
+        {/* Technology */}
         <div className="mt-10 flex flex-wrap justify-center gap-3">
           <span className="rounded-full border border-white/10 px-4 py-2 text-sm text-white/50">
             Solana
