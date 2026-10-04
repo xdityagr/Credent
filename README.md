@@ -1,5 +1,4 @@
 # Credent
-# Credent
 
 ### Privacy-Preserving Verifiable Credentials for the Web
 
