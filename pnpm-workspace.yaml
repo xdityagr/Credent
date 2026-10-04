@@ -1,3 +1,12 @@
 packages:
   - "apps/*"
   - "packages/*"
+allowBuilds:
+  '@stellar/stellar-sdk': true
+  blake-hash: true
+  bufferutil: true
+  protobufjs: true
+  tiny-secp256k1: true
+  unrs-resolver: true
+  usb: true
+  utf-8-validate: true
