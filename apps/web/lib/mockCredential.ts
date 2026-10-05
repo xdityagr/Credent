@@ -1,48 +1,70 @@
+import {
+  generateFinancialProof,
+  type FinancialClaim,
+  type PrivateFinancialData,
+} from "./crypto/proof";
+
 import type {
-  AgeCredentialClaims,
+  BusinessCreditClaims,
   VerifiableCredential,
-} from "@/types/credential";
+} from "../types/credential";
 
-import { createCommitment } from "@/lib/crypto/commitment";
+export interface BusinessCreditCredential
+  extends VerifiableCredential<BusinessCreditClaims> {
+  type: "BUSINESS_CREDIT";
+}
 
-export async function createMockAgeCredential(
-  walletAddress: string
-): Promise<VerifiableCredential<AgeCredentialClaims>> {
-  const dateOfBirth = "2000-01-15";
+/**
+ * Demo private financial data.
+ *
+ * In the real Credent system this will eventually come
+ * from a verified financial data source.
+ */
+export const privateFinancialData: PrivateFinancialData = {
+  annualRevenue: 1347829,
+  creditScore: 742,
+  totalDebt: 320000,
+  businessAgeYears: 6,
+  latePayments: 1,
+};
 
-  /**
-   * In a real credential this nonce would be generated securely
-   * when the credential is issued.
-   *
-   * We keep this deterministic for our current demo so that the
-   * credential is stable while developing.
-   */
-  const nonce = "credent-demo-nonce-001";
+/**
+ * Creates a demo Business Credit credential.
+ *
+ * IMPORTANT:
+ * The raw financial values are kept locally.
+ * The credential exposes only a cryptographic commitment.
+ */
+export async function createBusinessCreditCredential(
+  subjectId: string
+): Promise<BusinessCreditCredential> {
+  const claims: BusinessCreditClaims = {
+    annualRevenue: privateFinancialData.annualRevenue,
+    creditScore: privateFinancialData.creditScore,
+    totalDebt: privateFinancialData.totalDebt,
+    businessAgeYears: privateFinancialData.businessAgeYears,
+    latePayments: privateFinancialData.latePayments,
+  };
 
-  const commitment = await createCommitment(
-    dateOfBirth,
-    nonce
+  const claim: FinancialClaim = {
+    type: "MIN_REVENUE",
+    threshold: 1000000,
+  };
+
+  const proof = await generateFinancialProof(
+    privateFinancialData,
+    claim
   );
 
   return {
-    id: "credent-age-demo-001",
-
-    type: "AGE_VERIFICATION",
-
-    issuer: "did:credent:demo-issuer",
-
+    id: `credent-business-${Date.now()}`,
+    type: "BUSINESS_CREDIT",
+    issuer: "Credent",
     subject: {
-      id: walletAddress,
+      id: subjectId,
     },
-
-    claims: {
-      dateOfBirth,
-    },
-
-    issuedAt: "2026-10-01T00:00:00.000Z",
-
-    expiresAt: "2027-10-01T00:00:00.000Z",
-
-    commitment,
+    claims,
+    issuedAt: new Date().toISOString(),
+    commitment: proof.commitment,
   };
 }

@@ -1,13 +1,17 @@
 export type CredentialType =
-  | "AGE_VERIFICATION"
+  | "BUSINESS_CREDIT"
   | "UNIVERSITY_ENROLLMENT";
 
 export interface CredentialSubject {
   id: string;
 }
 
-export interface AgeCredentialClaims {
-  dateOfBirth: string;
+export interface BusinessCreditClaims {
+  annualRevenue: number;
+  creditScore: number;
+  totalDebt: number;
+  businessAgeYears: number;
+  latePayments: number;
 }
 
 export interface UniversityCredentialClaims {
@@ -31,9 +35,10 @@ export interface VerifiableCredential<TClaims> {
   expiresAt?: string;
 
   /**
-   * Cryptographic commitment to the private credential claims.
+   * Cryptographic commitment to the private claims.
    *
-   * The underlying claim is NOT stored inside the commitment.
+   * The underlying financial data should not be
+   * published on-chain.
    */
   commitment?: string;
 }

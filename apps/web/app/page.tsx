@@ -1,227 +1,123 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useWallet } from "@solana/wallet-adapter-react";
-
-import ConnectWalletButton from "@/components/ConnectWalletButton";
-import WalletStatus from "@/components/WalletStatus";
-import { createMockAgeCredential } from "@/lib/mockCredential";
+import ConnectWalletButton from "../components/ConnectWalletButton";
+import WalletStatus from "../components/WalletStatus";
+import FinancialProof from "../components/FinancialProof";
 
 export default function Home() {
-  const { connected, publicKey } = useWallet();
-
-  const [credential, setCredential] = useState<
-    Awaited<ReturnType<typeof createMockAgeCredential>> | null
-  >(null);
-
-  useEffect(() => {
-    if (!publicKey) {
-      setCredential(null);
-      return;
-    }
-
-    createMockAgeCredential(publicKey.toBase58()).then(setCredential);
-  }, [publicKey]);
-
   return (
-    <main className="min-h-screen bg-black text-white">
-      {/* Navigation */}
-      <nav className="flex items-center justify-between border-b border-white/10 px-8 py-6">
-        <div className="text-2xl font-semibold tracking-tight">
-          credent<span className="text-white/40">.</span>
+    <main
+      style={{
+        minHeight: "100vh",
+        background: "#000",
+        color: "#fff",
+        fontFamily: "Arial, Helvetica, sans-serif",
+      }}
+    >
+      {/* Header */}
+      <header
+        style={{
+          height: "88px",
+          borderBottom: "1px solid #1d1d1d",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "0 32px",
+        }}
+      >
+        {/* Credent Logo */}
+        <div
+          style={{
+            fontSize: "30px",
+            fontWeight: 800,
+            letterSpacing: "-1.5px",
+          }}
+        >
+          credent
+          <span style={{ color: "#00d9ff" }}>.</span>
         </div>
 
         <ConnectWalletButton />
-      </nav>
+      </header>
 
       {/* Hero */}
-      <section className="mx-auto flex min-h-[80vh] max-w-6xl flex-col items-center justify-center px-6 py-16 text-center">
-        <div className="max-w-3xl">
-          <p className="mb-6 text-sm uppercase tracking-[0.3em] text-white/40">
-            Privacy-preserving identity
-          </p>
-
-          <h1 className="text-5xl font-semibold tracking-tight sm:text-6xl">
-            Prove what you are.
-            <br />
-            <span className="text-white/40">
-              Without exposing everything.
-            </span>
-          </h1>
-
-          <p className="mx-auto mt-6 max-w-2xl text-base leading-7 text-white/50 sm:text-lg">
-            Credent is a privacy-first credential platform built on Solana.
-            Verify claims about yourself without unnecessarily revealing your
-            underlying personal data.
-          </p>
+      <section
+        style={{
+          maxWidth: "1100px",
+          margin: "0 auto",
+          padding: "105px 24px 80px",
+          textAlign: "center",
+        }}
+      >
+        <div
+          style={{
+            color: "#777",
+            fontSize: "15px",
+            letterSpacing: "6px",
+            fontWeight: 500,
+            marginBottom: "38px",
+          }}
+        >
+          PRIVACY-PRESERVING BUSINESS CREDIT
         </div>
 
-        {/* Wallet Status */}
-        <div className="mt-12 w-full max-w-xl">
+        <h1
+          style={{
+            margin: 0,
+            fontSize: "76px",
+            lineHeight: "0.98",
+            letterSpacing: "-4px",
+            fontWeight: 800,
+          }}
+        >
+          Prove your
+          <br />
+          creditworthiness.
+        </h1>
+
+        <h2
+          style={{
+            margin: "12px 0 0",
+            fontSize: "76px",
+            lineHeight: "0.98",
+            letterSpacing: "-4px",
+            fontWeight: 800,
+            color: "#555",
+          }}
+        >
+          Without exposing your
+          <br />
+          finances.
+        </h2>
+
+        <p
+          style={{
+            maxWidth: "780px",
+            margin: "48px auto 0",
+            color: "#8b8b8b",
+            fontSize: "20px",
+            lineHeight: 1.55,
+          }}
+        >
+          Credent enables businesses to prove financial claims to lenders
+          without revealing their underlying financial data.
+        </p>
+
+        {/* Wallet */}
+        <div style={{ marginTop: "65px" }}>
           <WalletStatus />
         </div>
 
-        {/* Credential */}
-        {connected && credential ? (
-          <div className="mt-6 w-full max-w-xl rounded-2xl border border-white/10 bg-white/5 p-6 text-left">
-            {/* Credential Header */}
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-white/40">
-                  Credential
-                </p>
-
-                <h2 className="mt-2 text-xl font-medium">
-                  Age Verification
-                </h2>
-              </div>
-
-              <span className="rounded-full border border-green-400/20 bg-green-400/10 px-3 py-1 text-xs text-green-400">
-                Valid
-              </span>
-            </div>
-
-            {/* Credential Details */}
-            <div className="mt-6 space-y-4 text-sm">
-              {/* Type */}
-              <div className="flex items-start justify-between gap-6">
-                <span className="text-white/40">
-                  Type
-                </span>
-
-                <span className="font-mono text-xs">
-                  {credential.type}
-                </span>
-              </div>
-
-              {/* Credential ID */}
-              <div className="flex items-start justify-between gap-6">
-                <span className="text-white/40">
-                  Credential ID
-                </span>
-
-                <span className="max-w-[250px] break-all text-right font-mono text-xs text-white/70">
-                  {credential.id}
-                </span>
-              </div>
-
-              {/* Issuer */}
-              <div className="flex items-start justify-between gap-6">
-                <span className="text-white/40">
-                  Issuer
-                </span>
-
-                <span className="max-w-[250px] break-all text-right font-mono text-xs text-white/70">
-                  {credential.issuer}
-                </span>
-              </div>
-
-              {/* Cryptographic Commitment */}
-              <div className="flex items-start justify-between gap-6">
-                <span className="text-white/40">
-                  Commitment
-                </span>
-
-                <span className="max-w-[250px] break-all text-right font-mono text-xs text-white/70">
-                  {credential.commitment}
-                </span>
-              </div>
-
-              {/* Subject Wallet */}
-              <div className="flex items-start justify-between gap-6">
-                <span className="text-white/40">
-                  Subject wallet
-                </span>
-
-                <span className="max-w-[250px] break-all text-right font-mono text-xs text-white/70">
-                  {credential.subject.id}
-                </span>
-              </div>
-
-              {/* Date of Birth */}
-              <div className="flex items-start justify-between gap-6">
-                <span className="text-white/40">
-                  Date of Birth
-                </span>
-
-                <span className="font-mono text-xs">
-                  {credential.claims.dateOfBirth}
-                </span>
-              </div>
-
-              {/* Issued */}
-              <div className="flex items-start justify-between gap-6">
-                <span className="text-white/40">
-                  Issued
-                </span>
-
-                <span className="text-white/70">
-                  {new Date(
-                    credential.issuedAt
-                  ).toLocaleDateString()}
-                </span>
-              </div>
-
-              {/* Expires */}
-              {credential.expiresAt && (
-                <div className="flex items-start justify-between gap-6">
-                  <span className="text-white/40">
-                    Expires
-                  </span>
-
-                  <span className="text-white/70">
-                    {new Date(
-                      credential.expiresAt
-                    ).toLocaleDateString()}
-                  </span>
-                </div>
-              )}
-            </div>
-
-            {/* Privacy Layer */}
-            <div className="mt-6 rounded-xl border border-white/10 bg-black/40 p-4">
-              <p className="text-sm font-medium">
-                🔐 Cryptographic commitment created
-              </p>
-
-              <p className="mt-2 text-xs leading-5 text-white/40">
-                The credential now has a cryptographic commitment derived
-                from the private date of birth and a nonce. The next step
-                is to use this commitment inside a zero-knowledge proof
-                so a verifier can confirm the age requirement without
-                learning the underlying date of birth.
-              </p>
-            </div>
-          </div>
-        ) : (
-          /* Not Connected */
-          <div className="mt-6 w-full max-w-xl rounded-2xl border border-dashed border-white/10 p-8">
-            <p className="text-sm text-white/40">
-              Connect your wallet to view your credential.
-            </p>
-          </div>
-        )}
-
-        {/* Technology */}
-        <div className="mt-10 flex flex-wrap justify-center gap-3">
-          <span className="rounded-full border border-white/10 px-4 py-2 text-sm text-white/50">
-            Solana
-          </span>
-
-          <span className="rounded-full border border-white/10 px-4 py-2 text-sm text-white/50">
-            Zero-Knowledge Proofs
-          </span>
-
-          <span className="rounded-full border border-white/10 px-4 py-2 text-sm text-white/50">
-            Verifiable Credentials
-          </span>
+        {/* Financial Proof */}
+        <div
+          style={{
+            marginTop: "30px",
+            textAlign: "left",
+          }}
+        >
+          <FinancialProof />
         </div>
       </section>
-
-      {/* Footer */}
-      <footer className="border-t border-white/10 px-8 py-6 text-center text-sm text-white/30">
-        Credent — Privacy-preserving identity infrastructure
-      </footer>
     </main>
   );
 }
