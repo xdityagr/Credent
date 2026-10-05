@@ -17,10 +17,23 @@ export interface UniversityCredentialClaims {
 
 export interface VerifiableCredential<TClaims> {
   id: string;
+
   type: CredentialType;
+
   issuer: string;
+
   subject: CredentialSubject;
+
   claims: TClaims;
+
   issuedAt: string;
+
   expiresAt?: string;
+
+  /**
+   * Cryptographic commitment to the private credential claims.
+   *
+   * The underlying claim is NOT stored inside the commitment.
+   */
+  commitment?: string;
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 
 import ConnectWalletButton from "@/components/ConnectWalletButton";
@@ -10,15 +10,18 @@ import { createMockAgeCredential } from "@/lib/mockCredential";
 export default function Home() {
   const { connected, publicKey } = useWallet();
 
-  const walletAddress = publicKey?.toBase58();
+  const [credential, setCredential] = useState<
+    Awaited<ReturnType<typeof createMockAgeCredential>> | null
+  >(null);
 
-  const credential = useMemo(() => {
-    if (!walletAddress) {
-      return null;
+  useEffect(() => {
+    if (!publicKey) {
+      setCredential(null);
+      return;
     }
 
-    return createMockAgeCredential(walletAddress);
-  }, [walletAddress]);
+    createMockAgeCredential(publicKey.toBase58()).then(setCredential);
+  }, [publicKey]);
 
   return (
     <main className="min-h-screen bg-black text-white">
@@ -53,7 +56,7 @@ export default function Home() {
           </p>
         </div>
 
-        {/* Wallet */}
+        {/* Wallet Status */}
         <div className="mt-12 w-full max-w-xl">
           <WalletStatus />
         </div>
@@ -61,9 +64,12 @@ export default function Home() {
         {/* Credential */}
         {connected && credential ? (
           <div className="mt-6 w-full max-w-xl rounded-2xl border border-white/10 bg-white/5 p-6 text-left">
+            {/* Credential Header */}
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-white/40">Credential</p>
+                <p className="text-sm text-white/40">
+                  Credential
+                </p>
 
                 <h2 className="mt-2 text-xl font-medium">
                   Age Verification
@@ -75,49 +81,79 @@ export default function Home() {
               </span>
             </div>
 
+            {/* Credential Details */}
             <div className="mt-6 space-y-4 text-sm">
+              {/* Type */}
               <div className="flex items-start justify-between gap-6">
-                <span className="text-white/40">Type</span>
+                <span className="text-white/40">
+                  Type
+                </span>
 
                 <span className="font-mono text-xs">
                   {credential.type}
                 </span>
               </div>
 
+              {/* Credential ID */}
               <div className="flex items-start justify-between gap-6">
-                <span className="text-white/40">Credential ID</span>
+                <span className="text-white/40">
+                  Credential ID
+                </span>
 
                 <span className="max-w-[250px] break-all text-right font-mono text-xs text-white/70">
                   {credential.id}
                 </span>
               </div>
 
+              {/* Issuer */}
               <div className="flex items-start justify-between gap-6">
-                <span className="text-white/40">Issuer</span>
+                <span className="text-white/40">
+                  Issuer
+                </span>
 
                 <span className="max-w-[250px] break-all text-right font-mono text-xs text-white/70">
                   {credential.issuer}
                 </span>
               </div>
 
+              {/* Cryptographic Commitment */}
               <div className="flex items-start justify-between gap-6">
-                <span className="text-white/40">Subject wallet</span>
+                <span className="text-white/40">
+                  Commitment
+                </span>
+
+                <span className="max-w-[250px] break-all text-right font-mono text-xs text-white/70">
+                  {credential.commitment}
+                </span>
+              </div>
+
+              {/* Subject Wallet */}
+              <div className="flex items-start justify-between gap-6">
+                <span className="text-white/40">
+                  Subject wallet
+                </span>
 
                 <span className="max-w-[250px] break-all text-right font-mono text-xs text-white/70">
                   {credential.subject.id}
                 </span>
               </div>
 
+              {/* Date of Birth */}
               <div className="flex items-start justify-between gap-6">
-                <span className="text-white/40">Date of Birth</span>
+                <span className="text-white/40">
+                  Date of Birth
+                </span>
 
                 <span className="font-mono text-xs">
                   {credential.claims.dateOfBirth}
                 </span>
               </div>
 
+              {/* Issued */}
               <div className="flex items-start justify-between gap-6">
-                <span className="text-white/40">Issued</span>
+                <span className="text-white/40">
+                  Issued
+                </span>
 
                 <span className="text-white/70">
                   {new Date(
@@ -126,9 +162,12 @@ export default function Home() {
                 </span>
               </div>
 
+              {/* Expires */}
               {credential.expiresAt && (
                 <div className="flex items-start justify-between gap-6">
-                  <span className="text-white/40">Expires</span>
+                  <span className="text-white/40">
+                    Expires
+                  </span>
 
                   <span className="text-white/70">
                     {new Date(
@@ -139,20 +178,23 @@ export default function Home() {
               )}
             </div>
 
-            {/* Privacy message */}
+            {/* Privacy Layer */}
             <div className="mt-6 rounded-xl border border-white/10 bg-black/40 p-4">
               <p className="text-sm font-medium">
-                🔐 Privacy layer coming next
+                🔐 Cryptographic commitment created
               </p>
 
               <p className="mt-2 text-xs leading-5 text-white/40">
-                The credential is now associated with the connected wallet.
-                The next step is to prove the age requirement without revealing
-                the underlying date of birth.
+                The credential now has a cryptographic commitment derived
+                from the private date of birth and a nonce. The next step
+                is to use this commitment inside a zero-knowledge proof
+                so a verifier can confirm the age requirement without
+                learning the underlying date of birth.
               </p>
             </div>
           </div>
         ) : (
+          /* Not Connected */
           <div className="mt-6 w-full max-w-xl rounded-2xl border border-dashed border-white/10 p-8">
             <p className="text-sm text-white/40">
               Connect your wallet to view your credential.
