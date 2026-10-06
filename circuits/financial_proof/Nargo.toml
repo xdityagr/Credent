@@ -1,0 +1,6 @@
+[package]
+name = "financial_proof"
+type = "bin"
+authors = [""]
+
+[dependencies]
