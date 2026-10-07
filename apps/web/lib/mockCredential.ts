@@ -1,70 +1,96 @@
-import {
-  generateFinancialProof,
-  type FinancialClaim,
-  type PrivateFinancialData,
-} from "./crypto/proof";
+import { privateFinancialData } from "./mockCredentialData";
+
+import { generateFinancialZKProof } from "./zk/generateFinancialZKProof";
+
+import { signFinancialCredential } from "./issuer/sign";
+
+import { verifyFinancialCredential } from "./issuer/verify";
 
 import type {
-  BusinessCreditClaims,
-  VerifiableCredential,
+  BusinessCreditProofCredential,
 } from "../types/credential";
 
-export interface BusinessCreditCredential
-  extends VerifiableCredential<BusinessCreditClaims> {
-  type: "BUSINESS_CREDIT";
-}
-
-/**
- * Demo private financial data.
- *
- * In the real Credent system this will eventually come
- * from a verified financial data source.
- */
-export const privateFinancialData: PrivateFinancialData = {
-  annualRevenue: 1347829,
-  creditScore: 742,
-  totalDebt: 320000,
-  businessAgeYears: 6,
-  latePayments: 1,
-};
-
-/**
- * Creates a demo Business Credit credential.
- *
- * IMPORTANT:
- * The raw financial values are kept locally.
- * The credential exposes only a cryptographic commitment.
- */
-export async function createBusinessCreditCredential(
+import type {
+  IssuerSignedFinancialCredential,
+} from "./issuer/credential";
+export async function createBusinessCreditProofCredential(
   subjectId: string
-): Promise<BusinessCreditCredential> {
-  const claims: BusinessCreditClaims = {
-    annualRevenue: privateFinancialData.annualRevenue,
-    creditScore: privateFinancialData.creditScore,
-    totalDebt: privateFinancialData.totalDebt,
-    businessAgeYears: privateFinancialData.businessAgeYears,
-    latePayments: privateFinancialData.latePayments,
-  };
+): Promise<BusinessCreditProofCredential> {
+  const threshold = 1_000_000;
 
-  const claim: FinancialClaim = {
-    type: "MIN_REVENUE",
-    threshold: 1000000,
-  };
+  /*
+   * Step 1:
+   * Create the issuer-signed financial credential.
+   *
+   * The raw financial claims stay server-side.
+   */
+  const issuerCredential: IssuerSignedFinancialCredential =
+    signFinancialCredential({
+      id: `credent-financial-${Date.now()}`,
 
-  const proof = await generateFinancialProof(
-    privateFinancialData,
-    claim
+      subjectId,
+
+      claims: privateFinancialData,
+
+      issuedAt: new Date().toISOString(),
+    });
+
+    const issuerSignatureValid =
+  verifyFinancialCredential(issuerCredential);
+
+if (!issuerSignatureValid) {
+  throw new Error(
+    "Issuer signature verification failed."
   );
+}
+  /*
+   * Step 2:
+   * Generate the ZK proof from the private financial value.
+   *
+   * The proof demonstrates:
+   *
+   * annualRevenue >= threshold
+   */
+  const proof = await generateFinancialZKProof({
+    revenue: issuerCredential.claims.annualRevenue,
+    threshold,
+  });
 
+  /*
+   * Step 3:
+   * Return only the public proof credential.
+   *
+   * Raw financial claims and the issuer signature are
+   * deliberately NOT included here.
+   */
   return {
-    id: `credent-business-${Date.now()}`,
+    id: `credent-business-proof-${Date.now()}`,
+
     type: "BUSINESS_CREDIT",
-    issuer: "Credent",
+
+    issuer: issuerCredential.issuer.id,
+
     subject: {
       id: subjectId,
     },
-    claims,
-    issuedAt: new Date().toISOString(),
-    commitment: proof.commitment,
+
+    claim: {
+      type: proof.claim,
+      threshold: proof.threshold,
+    },
+
+    proof: {
+      proof: proof.proof,
+      publicInputs: proof.publicInputs,
+      verificationKey: proof.verificationKey,
+    },
+
+    issuedAt: issuerCredential.issuedAt,
+
+    ...(issuerCredential.expiresAt
+      ? {
+          expiresAt: issuerCredential.expiresAt,
+        }
+      : {}),
   };
 }

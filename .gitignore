@@ -1,2 +1,4 @@
 
 node_modules/
+# Noir build artifacts
+circuits/**/target/

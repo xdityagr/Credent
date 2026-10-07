@@ -1,221 +1,209 @@
 "use client";
 
 import { useState } from "react";
-import { createCommitment } from "../lib/crypto/commitment";
-import { generateNonce } from "../lib/crypto/nonce";
-import { verifyFinancialProof } from "../lib/crypto/verify";
+
+interface ProofCredential {
+  id: string;
+  type: "BUSINESS_CREDIT";
+  issuer: string;
+  subject: {
+    id: string;
+  };
+  claim: {
+    type:
+      | "MIN_REVENUE"
+      | "MIN_CREDIT_SCORE"
+      | "MAX_DEBT"
+      | "MIN_BUSINESS_AGE"
+      | "MAX_LATE_PAYMENTS";
+    threshold: number;
+  };
+  proof: {
+    proof: string;
+    publicInputs: string;
+    verificationKey: string;
+  };
+  issuedAt: string;
+  expiresAt?: string;
+}
+
+interface CredentialResponse {
+  success: boolean;
+  credential?: ProofCredential;
+  error?: string;
+}
 
 export default function FinancialProof() {
-  const [commitment, setCommitment] = useState<string | null>(null);
-  const [verified, setVerified] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(false);
-
-  // PRIVATE DATA
-  // This value never appears in the UI.
-  const privateRevenue = 1250000;
-
-  // PUBLIC CLAIM
-  const revenueThreshold = 1000000;
+  const [credential, setCredential] =
+    useState<ProofCredential | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   async function generateProof() {
     setLoading(true);
-    setVerified(null);
+    setCredential(null);
+    setError(null);
 
     try {
-      // Generate a fresh random nonce.
-      const nonce = generateNonce();
-
-      // Create commitment from the private value + nonce.
-      const generatedCommitment = await createCommitment(
-        String(privateRevenue),
-        nonce
+      const response = await fetch(
+        "/api/business-credential",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            subjectId: "did:credent:demo-business",
+          }),
+        }
       );
 
-      setCommitment(generatedCommitment);
+      const data: CredentialResponse =
+        await response.json();
 
-      // Verify the generated commitment.
-      const isValid = await verifyFinancialProof({
-        claim: `Annual revenue >= $${revenueThreshold.toLocaleString()}`,
-        value: privateRevenue,
-        nonce,
-        commitment: generatedCommitment,
-      });
+      if (!response.ok || !data.success || !data.credential) {
+        throw new Error(
+          data.error ||
+            "Failed to generate business credential."
+        );
+      }
 
-      setVerified(isValid);
+      setCredential(data.credential);
     } catch (error) {
-      console.error("Financial proof generation failed:", error);
-      setVerified(false);
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Failed to generate financial proof."
+      );
     } finally {
       setLoading(false);
     }
   }
 
+  const threshold =
+    credential?.claim.threshold ?? 1_000_000;
+
   return (
-    <section
-      style={{
-        width: "100%",
-        border: "1px solid #242424",
-        borderRadius: "22px",
-        padding: "40px",
-        background: "#050505",
-      }}
-    >
-      {/* Header */}
-      <div
-        style={{
-          color: "#777",
-          fontSize: "14px",
-          letterSpacing: "4px",
-          marginBottom: "25px",
-        }}
-      >
-        PRIVATE FINANCIAL CREDENTIAL
+    <section className="w-full rounded-[28px] border border-white/10 bg-black p-12">
+      <div className="mb-10">
+        <p className="mb-8 text-sm tracking-[0.35em] text-white/50">
+          PRIVATE FINANCIAL CREDENTIAL
+        </p>
+
+        <h2 className="text-4xl font-semibold tracking-tight text-white md:text-5xl">
+          Prove your revenue threshold
+          <span className="text-yellow-400">.</span>
+        </h2>
+
+        <p className="mt-6 max-w-3xl text-lg text-white/50">
+          Credent verifies your financial claim without
+          exposing the underlying financial data.
+        </p>
       </div>
 
-      <h2
-        style={{
-          fontSize: "36px",
-          margin: "0 0 18px",
-          fontWeight: 600,
-        }}
-      >
-        Prove your revenue threshold.
-      </h2>
+      <div className="rounded-[24px] border border-white/10 bg-black p-10">
+        <p className="text-sm text-white/40">CLAIM</p>
 
-      <p
-        style={{
-          color: "#777",
-          fontSize: "18px",
-          marginBottom: "40px",
-        }}
-      >
-        Credent verifies your financial claim without exposing the underlying
-        financial data.
-      </p>
-
-      {/* Claim */}
-      <div
-        style={{
-          border: "1px solid #242424",
-          borderRadius: "18px",
-          padding: "30px",
-          marginBottom: "25px",
-        }}
-      >
-        <div
-          style={{
-            color: "#777",
-            fontSize: "14px",
-            marginBottom: "14px",
-          }}
-        >
-          CLAIM
-        </div>
-
-        <div
-          style={{
-            fontSize: "25px",
-            fontWeight: 600,
-          }}
-        >
-          Annual revenue ≥ ${revenueThreshold.toLocaleString()}
-        </div>
+        <p className="mt-6 text-2xl font-semibold text-white">
+          Annual revenue ≥ $10,00,000
+        </p>
       </div>
 
-      {/* Generate proof */}
       <button
         onClick={generateProof}
         disabled={loading}
-        style={{
-          width: "100%",
-          padding: "20px",
-          borderRadius: "14px",
-          border: "none",
-          background: "#fff",
-          color: "#000",
-          fontSize: "18px",
-          fontWeight: 600,
-          cursor: loading ? "wait" : "pointer",
-        }}
+        className="mt-8 flex w-full items-center justify-center rounded-[18px] bg-white px-6 py-5 text-lg font-semibold text-black transition hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-50"
       >
-        {loading ? "Generating proof..." : "Generate Financial Proof"}
+        {loading
+          ? "Generating Zero-Knowledge Proof..."
+          : "Generate Financial Proof"}
       </button>
 
-      {/* Verification result */}
-      {commitment && (
-        <div
-          style={{
-            marginTop: "30px",
-            border: "1px solid #242424",
-            borderRadius: "18px",
-            padding: "30px",
-          }}
-        >
-          <div
-            style={{
-              fontSize: "20px",
-              fontWeight: 600,
-              marginBottom: "30px",
-            }}
-          >
-            <span
-              style={{
-                color: verified ? "#00e676" : "#ff4444",
-                marginRight: "12px",
-              }}
-            >
-              {verified ? "✓" : "✕"}
+      {loading && (
+        <div className="mt-8 rounded-[24px] border border-white/10 bg-black p-10">
+          <div className="flex items-center gap-3">
+            <div className="h-3 w-3 animate-pulse rounded-full bg-yellow-400" />
+
+            <p className="text-lg font-medium text-white">
+              Generating and verifying ZK proof
+            </p>
+          </div>
+
+          <p className="mt-4 text-sm text-white/40">
+            Credent is generating a private financial
+            credential and verifying the cryptographic proof.
+          </p>
+        </div>
+      )}
+
+      {credential && (
+        <div className="mt-8 rounded-[24px] border border-white/10 bg-black p-10">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl text-green-400">
+              ✓
             </span>
 
-            {verified
-              ? "Financial claim verified"
-              : "Financial claim invalid"}
+            <p className="text-xl font-semibold text-white">
+              Zero-Knowledge Proof Verified
+            </p>
           </div>
 
-          <div
-            style={{
-              color: "#777",
-              fontSize: "14px",
-              marginBottom: "12px",
-            }}
-          >
-            COMMITMENT
-          </div>
+          <div className="mt-8 space-y-6">
+            <div>
+              <p className="text-sm text-white/40">
+                VERIFIED CLAIM
+              </p>
 
-          <div
-            style={{
-              color: "#aaa",
-              fontSize: "14px",
-              wordBreak: "break-all",
-              lineHeight: 1.6,
-            }}
-          >
-            {commitment}
-          </div>
-
-          <div
-            style={{
-              color: "#666",
-              marginTop: "25px",
-              fontSize: "15px",
-            }}
-          >
-            The underlying financial value was not exposed.
-          </div>
-
-          {verified && (
-            <div
-              style={{
-                marginTop: "25px",
-                paddingTop: "20px",
-                borderTop: "1px solid #222",
-                color: "#00e676",
-                fontSize: "14px",
-              }}
-            >
-              ✓ Commitment independently reproduced and verified.
+              <p className="mt-2 text-lg font-medium text-white">
+                Revenue meets the required threshold
+              </p>
             </div>
-          )}
+
+            <div>
+              <p className="text-sm text-white/40">
+                PUBLIC THRESHOLD
+              </p>
+
+              <p className="mt-2 text-lg font-medium text-white">
+                ${threshold.toLocaleString("en-US")}
+              </p>
+            </div>
+
+            <div>
+              <p className="text-sm text-white/40">
+                CREDENTIAL ISSUER
+              </p>
+
+              <p className="mt-2 text-lg font-medium text-white">
+                {credential.issuer}
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 p-6">
+              <p className="text-sm font-medium text-green-400">
+                ✓ Cryptographic proof verified
+              </p>
+
+              <p className="mt-3 text-sm leading-6 text-white/40">
+                The credential proves that the private
+                financial value satisfies the required
+                threshold without exposing the underlying
+                revenue.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {error && (
+        <div className="mt-8 rounded-[24px] border border-red-500/20 bg-black p-10">
+          <p className="text-lg font-semibold text-red-400">
+            Proof generation failed
+          </p>
+
+          <p className="mt-3 text-sm text-white/50">
+            {error}
+          </p>
         </div>
       )}
     </section>

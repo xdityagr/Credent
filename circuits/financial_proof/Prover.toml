@@ -1,2 +1,4 @@
-revenue = 2500000
-threshold = 1000000
+revenue = "2500000"
+nonce = "12345"
+threshold = "1000000"
+expected_commitment = "0x1c466dbf98a6d9a9097c4f83ecb072d0dcfc4052e75dfdeab7b7fec1c8d3b3cc"
