@@ -1,3 +1,4 @@
+
 fn main(
     revenue: u64,
     nonce: Field,
@@ -6,10 +7,8 @@ fn main(
 ) {
     assert(revenue >= threshold);
 
-    let revenue_field = revenue as Field;
-
     let commitment = std::hash::pedersen_hash([
-        revenue_field,
+        revenue as Field,
         nonce
     ]);
 
@@ -27,7 +26,10 @@ fn test_revenue_meets_threshold() {
         nonce
     ]);
 
-    println(commitment);
-
-    assert(revenue >= threshold);
+    main(
+        revenue,
+        nonce,
+        threshold,
+        commitment
+    );
 }
