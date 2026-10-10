@@ -45,26 +45,27 @@ export default function FinancialProof() {
     setError(null);
 
     try {
-      const response = await fetch(
-        "/api/business-credential",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            subjectId: "did:credent:demo-business",
-          }),
-        }
-      );
+      const response = await fetch("/api/business-credential", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          subjectId: "did:credent:demo-business",
+        }),
+      });
 
-      const data: CredentialResponse =
-        await response.json();
+      const data: CredentialResponse = await response
+        .json()
+        .catch(() => ({
+          success: false,
+          error: "The server returned an invalid response.",
+        }));
 
       if (!response.ok || !data.success || !data.credential) {
         throw new Error(
           data.error ||
-            "Failed to generate business credential."
+            `Credential generation failed (HTTP ${response.status}).`
         );
       }
 
@@ -80,8 +81,7 @@ export default function FinancialProof() {
     }
   }
 
-  const threshold =
-    credential?.claim.threshold ?? 1_000_000;
+  const threshold = credential?.claim.threshold ?? 1_000_000;
 
   return (
     <section className="w-full rounded-[28px] border border-white/10 bg-black p-12">
@@ -105,7 +105,7 @@ export default function FinancialProof() {
         <p className="text-sm text-white/40">CLAIM</p>
 
         <p className="mt-6 text-2xl font-semibold text-white">
-          Annual revenue ≥ $10,00,000
+          Annual revenue ≥ $1,000,000
         </p>
       </div>
 
@@ -125,13 +125,14 @@ export default function FinancialProof() {
             <div className="h-3 w-3 animate-pulse rounded-full bg-yellow-400" />
 
             <p className="text-lg font-medium text-white">
-              Generating and verifying ZK proof
+              Generating financial credential
             </p>
           </div>
 
           <p className="mt-4 text-sm text-white/40">
-            Credent is generating a private financial
-            credential and verifying the cryptographic proof.
+            Credent is requesting the credential and proof
+            from the server. The result will be displayed
+            only after the server reports success.
           </p>
         </div>
       )}
@@ -139,12 +140,10 @@ export default function FinancialProof() {
       {credential && (
         <div className="mt-8 rounded-[24px] border border-white/10 bg-black p-10">
           <div className="flex items-center gap-3">
-            <span className="text-2xl text-green-400">
-              ✓
-            </span>
+            <span className="text-2xl text-green-400">✓</span>
 
             <p className="text-xl font-semibold text-white">
-              Zero-Knowledge Proof Verified
+              Credential Generated Successfully
             </p>
           </div>
 
@@ -181,14 +180,21 @@ export default function FinancialProof() {
 
             <div className="rounded-2xl border border-white/10 p-6">
               <p className="text-sm font-medium text-green-400">
-                ✓ Cryptographic proof verified
+                Credential returned by server
+              </p>
+
+              <p className="mt-3 break-all text-sm leading-6 text-white/40">
+                Credential ID: {credential.id}
+              </p>
+
+              <p className="mt-2 text-sm leading-6 text-white/40">
+                Issued at: {credential.issuedAt}
               </p>
 
               <p className="mt-3 text-sm leading-6 text-white/40">
-                The credential proves that the private
-                financial value satisfies the required
-                threshold without exposing the underlying
-                revenue.
+                This status confirms that the server returned
+                a credential. It does not independently verify
+                the cryptographic proof in the browser.
               </p>
             </div>
           </div>
@@ -201,7 +207,7 @@ export default function FinancialProof() {
             Proof generation failed
           </p>
 
-          <p className="mt-3 text-sm text-white/50">
+          <p className="mt-3 break-words text-sm text-white/50">
             {error}
           </p>
         </div>
