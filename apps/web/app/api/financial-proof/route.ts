@@ -1,8 +1,4 @@
 import { NextResponse } from "next/server";
-import { execFile } from "child_process";
-import { promisify } from "util";
-
-const execFileAsync = promisify(execFile);
 
 export async function POST(request: Request) {
   try {
@@ -35,45 +31,27 @@ export async function POST(request: Request) {
       });
     }
 
-    const { stdout } = await execFileAsync(
-      "powershell.exe",
-      [
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        "C:\\Users\\kashy\\credent\\scripts\\prove-financial-proof.ps1",
-        "-Revenue",
-        String(revenue),
-        "-Threshold",
-        String(threshold),
-      ],
-      {
-        windowsHide: true,
-        maxBuffer: 10 * 1024 * 1024,
-      }
+    console.error(
+      "Financial proof generation is unavailable in this deployment: " +
+      "the current prover requires Windows PowerShell and WSL."
     );
-
-    // The prover prints logs first and the JSON result last.
-    const lines = stdout.trim().split(/\r?\n/);
-    const jsonLine = lines[lines.length - 1];
-
-    const proofResult = JSON.parse(jsonLine);
-
-    return NextResponse.json({
-      valid: proofResult.valid,
-      claim: proofResult.claim,
-      threshold: proofResult.threshold,
-      proof: proofResult.proof,
-      publicInputs: proofResult.publicInputs,
-      verificationKey: proofResult.verificationKey,
-    });
-  } catch (error) {
-    console.error("Financial proof generation failed:", error);
 
     return NextResponse.json(
       {
         valid: false,
-        error: "Failed to generate financial proof.",
+        error:
+          "Proof generation is unavailable on this deployment. " +
+          "The current prover requires Windows PowerShell and WSL.",
+      },
+      { status: 503 }
+    );
+  } catch (error) {
+    console.error("Financial proof API request failed:", error);
+
+    return NextResponse.json(
+      {
+        valid: false,
+        error: "Invalid request or financial proof API failure.",
       },
       { status: 500 }
     );
