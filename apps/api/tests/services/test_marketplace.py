@@ -159,3 +159,19 @@ def test_transfers_idempotent_when_nothing_pending(world):
     s, chain = world
     assert transfers.process(s, chain) == 0
     assert org_for  # imported for completeness
+
+
+def test_local_chain_rehydrates_after_restart(world, ctx, engine):
+    s, chain = world
+    sim.advance(s, ctx, 9)
+    from credent.chain.client import LiteChain
+    from credent.chain.rehydrate import rehydrate
+    from credent.services.context import Ctx
+
+    fresh = Ctx(settings=ctx.settings, keys=ctx.keys, prover=ctx.prover, client=LiteChain())  # "restart"
+    chain2 = fresh.chain(clock.world(s))
+    assert not chain2.client.exists(chain2.mint)
+    rehydrate(s, chain2)
+    assert_vaults_match_book(s, chain2)
+    assert chain2.balance("collections") == chain.balance("collections")
+    assert chain2.balance("treasury") == chain.balance("treasury")

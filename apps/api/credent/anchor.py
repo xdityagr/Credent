@@ -136,3 +136,26 @@ class AnchorWorker:
                     anchor_pending(s, self.anchor)
             except Exception:
                 log.exception("anchor loop")
+
+
+class ChainAnchor:
+    """Anchors through the protocol's ChainService (same fee payer, same cluster as token flows)."""
+
+    def __init__(self, chain, enabled: bool = True):
+        self.chain = chain
+        self.enabled = enabled
+        self.last_error: str | None = None
+
+    def anchor(self, b: Block) -> tuple[str, str | None, str | None]:
+        if not self.enabled:
+            return "DISABLED", None, None
+        from credent.chain import spl
+        from credent.chain.client import ChainError
+
+        try:
+            sig = self.chain._send([spl.memo(memo_text(b), [self.chain.fee_payer.pubkey()])], [])
+            self.last_error = None
+            return "ANCHORED", sig, None
+        except ChainError as e:
+            self.last_error = str(e)[:300]
+            return "UNANCHORED", None, self.last_error

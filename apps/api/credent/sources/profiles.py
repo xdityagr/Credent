@@ -21,11 +21,12 @@ class Profile:
 PROFILES: dict[str, Profile] = {
     p.key: p
     for p in [
-        Profile("saas", "Northwind Analytics", "B2B SaaS · subscription revenue",
+        Profile("saas", "Subscription software", "Steady B2B SaaS revenue with mild growth",
                 6_000_00, 0.05, 0.03, 0.08, 0.0015),
-        Profile("ecommerce", "Kestrel Outdoor Co.", "D2C e-commerce · seasonal",
+        Profile("ecommerce", "Seasonal e-commerce", "Direct-to-consumer sales with weekly and seasonal swings",
                 8_000_00, 0.25, 0.30, 0.25, 0.0008),
-        Profile("distressed", "Halcyon Logistics", "Freight broker · concentrated client",
+        Profile("distressed", "Concentrated freight broker",
+                "Healthy until its anchor client leaves, three weeks after funding",
                 5_000_00, 0.10, 0.05, 0.10, 0.0, collapse_factor=0.12),
     ]
 }

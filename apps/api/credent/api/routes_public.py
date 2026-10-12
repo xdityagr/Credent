@@ -1,14 +1,16 @@
+"""Public, unauthenticated routes: the open loan book."""
+
 import json
 
 from fastapi import APIRouter, Request
+from sqlmodel import select
 from sse_starlette.sse import EventSourceResponse
 
-from credent.api import schemas as S
-from credent.api.deps import CtxDep, SessionDep
+from credent.api.deps import ChainDep, CtxDep, SessionDep
 from credent.crypto.keys import pubkey_b58
 from credent.errors import DomainError
 from credent.events import broadcaster
-from credent.models import PoolRow
+from credent.models import Pool
 from credent.services import clock, public
 from credent.sources.profiles import PROFILES
 
@@ -16,70 +18,74 @@ router = APIRouter(prefix="/public", tags=["public"])
 
 
 @router.get("/status")
-def status(s: SessionDep, ctx: CtxDep, request: Request) -> S.PublicStatus:
+def status(s: SessionDep, ctx: CtxDep, chain: ChainDep, request: Request) -> dict:
     try:
         ctx.prover.ensure_available()
-        prover = S.ProverStatus(ok=True, message=None)
+        prover = {"ok": True, "message": None}
     except DomainError as e:
-        prover = S.ProverStatus(ok=False, message=e.message)
+        prover = {"ok": False, "message": e.message}
     st = request.app.state
-    return S.PublicStatus(
-        day=clock.today(s), seeded=s.get(PoolRow, 1) is not None, seeding=st.seeding,
-        seed_error=st.seed_error, sim_enabled=ctx.settings.sim_enabled, prover=prover,
-        anchor=S.AnchorStatus(**st.anchor.status()),
-        notary_pubkey=pubkey_b58(ctx.keys.get("notary")),
-        processor_pubkey=pubkey_b58(ctx.keys.get("processor")),
-    )
+    return {"day": clock.today(s), "date": clock.iso_date(s, clock.today(s)),
+            "seeded": s.exec(select(Pool)).first() is not None, "seeding": st.seeding, "seed_error": st.seed_error,
+            "clock_mode": ctx.settings.clock_mode, "seconds_per_day": ctx.settings.seconds_per_day,
+            "sim_enabled": ctx.settings.sim_enabled, "prover": prover, "chain": public.chain_info(chain),
+            "notary_pubkey": pubkey_b58(ctx.keys.get("notary")),
+            "processor_pubkey": pubkey_b58(ctx.keys.get("processor"))}
+
+
+@router.get("/stats")
+def stats(s: SessionDep) -> dict:
+    return public.stats(s)
 
 
 @router.get("/profiles")
-def profiles() -> list[S.PublicProfile]:
-    return [S.PublicProfile(key=p.key, label=p.label, description=p.description) for p in PROFILES.values()]
+def profiles() -> list[dict]:
+    return [{"key": p.key, "label": p.label, "description": p.description} for p in PROFILES.values()]
 
 
-@router.get("/pool")
-def pool(s: SessionDep) -> S.PublicPool:
-    return public.pool(s)
+@router.get("/pools")
+def pools_list(s: SessionDep, chain: ChainDep) -> list[dict]:
+    return public.pools_list(s, chain)
 
 
-@router.get("/tranches/history")
-def nav_history(s: SessionDep) -> list[S.PublicNavPoint]:
-    return public.nav_history(s)
+@router.get("/pools/{slug}")
+def pool(slug: str, s: SessionDep, chain: ChainDep) -> dict:
+    return public.pool_detail(s, chain, slug)
 
 
 @router.get("/loans")
-def loans(s: SessionDep) -> list[S.PublicLoan]:
-    return public.loans(s)
+def loans(s: SessionDep, chain: ChainDep, pool: str | None = None) -> list[dict]:
+    return public.loans_list(s, chain, pool)
 
 
 @router.get("/loans/{loan_id}")
-def loan(loan_id: str, s: SessionDep) -> S.PublicLoanDetail:
-    return public.loan_detail(s, loan_id)
+def loan(loan_id: str, s: SessionDep, chain: ChainDep) -> dict:
+    return public.loan_detail(s, chain, loan_id)
 
 
 @router.get("/ledger")
-def ledger_events(s: SessionDep, after: int | None = None, before: int | None = None,
-                  limit: int = 100, type: str | None = None) -> list[S.PublicEvent]:
-    return public.events(s, after, before, limit, type)
+def ledger_events(s: SessionDep, chain: ChainDep, after: int | None = None, before: int | None = None,
+                  limit: int = 100, type: str | None = None, pool: str | None = None) -> list[dict]:
+    return public.events(s, chain, after, before, limit, type, pool)
 
 
 @router.get("/ledger/verify")
-def verify_chain(s: SessionDep) -> S.ChainVerifyOut:
+def verify_chain(s: SessionDep) -> dict:
     return public.verify_chain(s)
 
 
 @router.get("/blocks")
-def blocks(s: SessionDep, request: Request) -> list[S.PublicBlock]:
-    return public.blocks(s, request.app.state.anchor)
+def blocks(s: SessionDep, chain: ChainDep) -> list[dict]:
+    return public.blocks(s, chain)
 
 
 @router.get("/proofs/{proof_id}")
-def proof(proof_id: str, s: SessionDep) -> S.PublicProof:
+def proof(proof_id: str, s: SessionDep) -> dict:
     return public.proof(s, proof_id)
 
 
 @router.post("/proofs/{proof_id}/verify")
-def verify_proof(proof_id: str, s: SessionDep, ctx: CtxDep) -> S.ProofVerifyOut:
+def verify_proof(proof_id: str, s: SessionDep, ctx: CtxDep) -> dict:
     return public.verify_proof(s, proof_id, ctx.prover, ctx.keys)
 
 
@@ -90,6 +96,10 @@ async def stream(request: Request):
         async for item in broadcaster.subscribe():
             if await request.is_disconnected():
                 break
+            if item.get("type") == "Notification":
+                continue  # org-scoped; never on the public stream
             yield {"event": "ledger", "data": json.dumps(item)}
 
     return EventSourceResponse(gen(), ping=15)
+
+

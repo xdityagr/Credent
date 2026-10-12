@@ -53,11 +53,11 @@ CO_INVESTOR = {"key": "atlas", "name": "Atlas Family Office", "sector": "Family 
                "website": "atlas.example", "description": "Senior-only allocations to secured private credit.",
                "senior": {"harbor": 1_100_000_00, "meridian": 600_000_00}}
 BORROWERS = [
-    {"key": "northwind", "profile": "saas", "sector": "B2B SaaS", "country": "India", "pool": "meridian",
+    {"key": "northwind", "name": "Northwind Analytics", "profile": "saas", "sector": "B2B SaaS", "country": "India", "pool": "meridian",
      "website": "northwind.example", "description": "Analytics software for mid-market logistics teams."},
-    {"key": "kestrel", "profile": "ecommerce", "sector": "D2C e-commerce", "country": "Canada", "pool": "harbor",
+    {"key": "kestrel", "name": "Kestrel Outdoor Co.", "profile": "ecommerce", "sector": "D2C e-commerce", "country": "Canada", "pool": "harbor",
      "website": "kestrel.example", "description": "Outdoor gear sold direct to consumers."},
-    {"key": "halcyon", "profile": "distressed", "sector": "Freight brokerage", "country": "Germany", "pool": "harbor",
+    {"key": "halcyon", "name": "Halcyon Logistics", "profile": "distressed", "sector": "Freight brokerage", "country": "Germany", "pool": "harbor",
      "website": "halcyon.example", "description": "Freight brokerage with one large anchor client."},
 ]
 DEMO_DOMAIN = "demo.credent.dev"
@@ -117,8 +117,7 @@ def seed(s: Session, ctx: Ctx, chain, world: str) -> None:
     for key, amount in CO_INVESTOR["senior"].items():
         _deposit(s, chain, atlas, pool_by_key[key], "senior", amount)
     for spec in BORROWERS:
-        prof = PROFILES[spec["profile"]]
-        user, org = _org(s, ctx, world, spec["key"], "BORROWER", {**spec, "name": prof.label})
+        user, org = _org(s, ctx, world, spec["key"], "BORROWER", spec)
         src = revenue.connect_demo(s, org, spec["profile"])
         series = revenue.series(s, src)
         proof = revenue.prove(s, ctx, org, src, revenue.suggest(series.total))
