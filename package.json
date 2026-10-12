@@ -1,14 +1,16 @@
 {
   "name": "credent",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Credent: private credit, public book",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev:web": "pnpm --dir apps/web dev",
+    "dev:api": "cd apps/api && uv run uvicorn credent.main:app --port 8000 --reload --reload-dir credent",
+    "build:web": "pnpm --dir apps/web build",
+    "test:api": "cd apps/api && uv run pytest",
+    "test:prover": "cd apps/api && uv run pytest -m prover",
+    "prover:build": "docker build -f infra/prover/Dockerfile -t credent-prover ."
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "devEngines": {
     "packageManager": {
       "name": "pnpm",
