@@ -35,6 +35,7 @@ class Prover(Protocol):
     def commit(self, daily: list[int], salt: str) -> str: ...
     def prove(self, daily: list[int], salt: str, threshold: int) -> ProofArtifacts: ...
     def verify(self, a: ProofArtifacts) -> bool: ...
+    def vk_b64(self) -> str: ...
 
 
 def new_salt() -> str:
@@ -84,6 +85,7 @@ class LocalRunner:
 class NoirProver:
     def __init__(self, runner: DockerRunner | LocalRunner):
         self.runner = runner
+        self._vk: str | None = None
 
     def ensure_available(self) -> None:
         problem = self.runner.available()
@@ -119,6 +121,17 @@ class NoirProver:
             b64 = lambda name: base64.b64encode((out / name).read_bytes()).decode()  # noqa: E731
             timings = json.loads((out / "timings.json").read_text()) if (out / "timings.json").exists() else {}
             return ProofArtifacts(b64("proof"), b64("public_inputs"), b64("vk"), timings)
+
+    def vk_b64(self) -> str:
+        """The circuit's canonical verification key (baked into the prover image), cached."""
+        if self._vk is None:
+            with tempfile.TemporaryDirectory(prefix="credent-") as tmp:
+                work = Path(tmp)
+                r = self._run("vk", work)
+                if r.returncode != 0:
+                    raise ProverUnavailable(f"Could not read the circuit VK: {r.stderr.strip()[-300:]}")
+                self._vk = base64.b64encode((work / "vk").read_bytes()).decode()
+        return self._vk
 
     def verify(self, a: ProofArtifacts) -> bool:
         with tempfile.TemporaryDirectory(prefix="credent-") as tmp:

@@ -17,6 +17,7 @@ from solders.keypair import Keypair
 from solders.message import Message
 from solders.pubkey import Pubkey
 from solders.transaction import Transaction
+from sqlalchemy import update
 from sqlmodel import Session, col, select
 
 from credent.config import Settings
@@ -99,11 +100,20 @@ class SolanaAnchor:
 def anchor_pending(s: Session, anchor: SolanaAnchor, limit: int = 3) -> int:
     blocks = s.exec(select(Block).where(col(Block.anchor_status).in_(["PENDING", "UNANCHORED"]))
                     .order_by(col(Block.n)).limit(limit)).all()
-    for b in blocks:
-        b.anchor_status, b.anchor_sig, b.anchor_error = anchor.anchor(b)
-        s.add(b)
+    targets = [(b.n, b.merkle_root, b) for b in blocks]
+    s.commit()  # release the read transaction before slow RPC calls
+    for n, root, b in targets:
+        status, sig, err = anchor.anchor(b)
+        # Conditional write: if the world was reset (or the block otherwise replaced) while
+        # the RPC was in flight, this signature belongs to a different root. Drop it.
+        s.exec(
+            update(Block)
+            .where(Block.n == n, Block.merkle_root == root,
+                   col(Block.anchor_status).in_(["PENDING", "UNANCHORED"]))
+            .values(anchor_status=status, anchor_sig=sig, anchor_error=err)
+        )
         s.commit()
-    return len(blocks)
+    return len(targets)
 
 
 class AnchorWorker:

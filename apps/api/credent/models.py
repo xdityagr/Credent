@@ -1,6 +1,17 @@
 """Persistence. Tables prefixed `Private` hold data that must never reach a public endpoint."""
 
+import itertools
+import time
+
 from sqlmodel import Field, SQLModel
+
+# Monotonic creation order. Sim days don't advance during onboarding, so "latest"
+# must not be decided by day alone (ties would resolve to the oldest row).
+_created = itertools.count(time.time_ns())
+
+
+def _next_created() -> int:
+    return next(_created)
 
 
 class SimState(SQLModel, table=True):
@@ -49,6 +60,7 @@ class AttestationRow(SQLModel, table=True):
     notary_pubkey: str
     signature: str
     day: int
+    created: int = Field(default_factory=_next_created, index=True)
 
 
 class ProofRow(SQLModel, table=True):
@@ -63,6 +75,7 @@ class ProofRow(SQLModel, table=True):
     verified: bool
     timings_json: str = "{}"
     day: int
+    created: int = Field(default_factory=_next_created, index=True)
 
 
 class CreditLine(SQLModel, table=True):
@@ -70,6 +83,7 @@ class CreditLine(SQLModel, table=True):
     limit: int
     proof_id: str = Field(foreign_key="proofrow.id")
     opened_day: int
+    drawn: bool = False  # single-use: a new draw needs a fresh proof and line
 
 
 class LoanRow(SQLModel, table=True):
@@ -82,6 +96,7 @@ class LoanRow(SQLModel, table=True):
     state_json: str
     status: str
     drawn_day: int
+    created: int = Field(default_factory=_next_created, index=True)
 
 
 class PrivatePayment(SQLModel, table=True):

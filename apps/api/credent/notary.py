@@ -34,13 +34,14 @@ class Attestation:
 
 
 def attest(source: str, period_start: int, period_end: int, account_ref: str,
-           commitment: str, notary_key: SigningKey) -> Attestation:
+           commitment: str, notary_key: SigningKey, account_salt: str = "") -> Attestation:
+    """`account_salt` must be private randomness, or the account hash can be brute-forced."""
     unsigned = Attestation(
         id="",
         source=source,
         period_start=period_start,
         period_end=period_end,
-        account_hash=hashlib.sha256(f"credent-account:{account_ref}".encode()).hexdigest(),
+        account_hash=hashlib.sha256(f"credent-account:{account_salt}:{account_ref}".encode()).hexdigest(),
         commitment=commitment,
         notary_pubkey=pubkey_b58(notary_key),
         signature="",

@@ -197,6 +197,8 @@ class PublicProof(BaseModel):
 class ProofVerifyOut(BaseModel):
     proof_valid: bool
     attestation_valid: bool
+    notary_trusted: bool
+    vk_pinned: bool
     threshold_bound: bool
     commitment_bound: bool
     valid: bool

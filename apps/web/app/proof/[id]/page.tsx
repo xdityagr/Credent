@@ -76,9 +76,11 @@ export default function ProofPage() {
         {result && (
           <ul className="mt-5 space-y-2 text-[15px]">
             <Check ok={result.proof_valid} text={`Proof verifies (${result.verifier}, ${result.ms} ms)`} />
+            <Check ok={result.vk_pinned} text="Verification key is the revenue_proof circuit's, and matches the hash on the ledger" />
             <Check ok={result.threshold_bound} text={`Public threshold equals ${usd(p.threshold)}`} />
             <Check ok={result.commitment_bound} text="Public commitment equals the notarized commitment" />
             <Check ok={result.attestation_valid} text="Notary signature over the commitment is valid" />
+            <Check ok={result.notary_trusted} text="Signed by Credent's published notary key" />
             <li className={`pt-2 text-[16px] font-semibold ${result.valid ? "text-junior" : "text-loss"}`}>
               {result.valid ? "Valid. The claim holds." : "Invalid. Do not rely on this claim."}
             </li>

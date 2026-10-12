@@ -7,6 +7,7 @@ written to the ledger is built from public fields.
 import base64
 import hashlib
 import json
+import secrets
 
 from sqlmodel import Session, col, select
 
@@ -16,6 +17,7 @@ from credent.core.sweep import LoanStatus, LoanState, new_loan
 from credent.crypto.keys import pubkey_b58
 from credent.errors import (
     ActiveLoanExists,
+    BorrowerInDefault,
     CreditExceeded,
     InvalidAmount,
     NotFound,
@@ -65,8 +67,13 @@ def _upsert_borrower(s: Session, wallet: str, profile: str) -> Borrower:
         raise InvalidAmount(f"Unknown business profile '{profile}'.")
     b = get(s, wallet)
     if b is None:
-        digest = _h(wallet)
-        b = Borrower(id=f"BRW-{digest[:6].upper()}", wallet=wallet, profile=profile, seed=int(digest[:8], 16))
+        # Pseudonym and seed come from fresh randomness, never from the wallet: a public
+        # pseudonym derived from the same digest as the seed lets anyone rebuild revenue.
+        while True:
+            bid = f"BRW-{secrets.token_hex(3).upper()}"
+            if s.get(Borrower, bid) is None:
+                break
+        b = Borrower(id=bid, wallet=wallet, profile=profile, seed=secrets.randbits(62))
     elif s.get(CreditLine, b.id):
         raise StepOutOfOrder("This borrower already has a credit line.")
     b.profile = profile
@@ -118,9 +125,8 @@ def connect_stripe(s: Session, wallet: str, profile: str) -> dict:
 def sample_receipts(s: Session, ctx: Ctx, wallet: str, profile: str, tampered: bool) -> list[dict]:
     if profile not in PROFILES:
         raise InvalidAmount(f"Unknown business profile '{profile}'.")
-    seed = int(_h(wallet)[:8], 16)
     start, _ = _period(s)
-    series = daily_revenue(PROFILES[profile], seed, start, HISTORY_DAYS)
+    series = daily_revenue(PROFILES[profile], secrets.randbits(62), start, HISTORY_DAYS)
     return make_receipts(series, start, ctx.keys.get("processor"), tampered=tampered)
 
 
@@ -144,7 +150,7 @@ def _series(s: Session, b: Borrower) -> PrivateSeries:
 
 
 def _latest(s: Session, model, b: Borrower):
-    return s.exec(select(model).where(model.borrower_id == b.id).order_by(col(model.day).desc())).first()
+    return s.exec(select(model).where(model.borrower_id == b.id).order_by(col(model.created).desc())).first()
 
 
 def attest(s: Session, ctx: Ctx, wallet: str) -> AttestationRow:
@@ -152,7 +158,7 @@ def attest(s: Session, ctx: Ctx, wallet: str) -> AttestationRow:
     series = _series(s, b)
     commitment = ctx.prover.commit(json.loads(series.daily_json), series.salt)
     a = notary_attest(series.source, series.period_start, series.period_end, series.account_ref,
-                      commitment, ctx.keys.get("notary"))
+                      commitment, ctx.keys.get("notary"), account_salt=series.salt)
     row = AttestationRow(**a.__dict__, borrower_id=b.id, day=clock.today(s))
     s.merge(row)
     ledger.append(s, row.day, "AttestationRecorded", {
@@ -209,14 +215,23 @@ def prove(s: Session, ctx: Ctx, wallet: str, threshold: int) -> ProofRow:
     return row
 
 
+def _in_default(s: Session, b: Borrower) -> bool:
+    return s.exec(select(LoanRow).where(LoanRow.borrower_id == b.id,
+                                        LoanRow.status == str(LoanStatus.DEFAULTED))).first() is not None
+
+
 def open_credit_line(s: Session, wallet: str) -> CreditLine:
     b = _require(s, wallet)
+    if _in_default(s, b):
+        raise BorrowerInDefault()
+    if active_loan(s, b):
+        raise ActiveLoanExists("Repay the current loan before opening a new credit line.")
     proof = _latest(s, ProofRow, b)
     if proof is None or not proof.verified:
         raise StepOutOfOrder("Generate a revenue proof first.")
     line = s.get(CreditLine, b.id) or CreditLine(borrower_id=b.id, limit=0, proof_id=proof.id, opened_day=0)
     line.limit = proof.threshold * CREDIT_ADVANCE_BPS // 10_000
-    line.proof_id, line.opened_day = proof.id, clock.today(s)
+    line.proof_id, line.opened_day, line.drawn = proof.id, clock.today(s), False
     s.add(line)
     ledger.append(s, line.opened_day, "CreditLineOpened", {
         "borrower": b.id, "limit": line.limit, "proof_id": proof.id,
@@ -237,8 +252,12 @@ def draw(s: Session, wallet: str, amount: int) -> LoanRow:
         raise StepOutOfOrder("Open a credit line first.")
     if not isinstance(amount, int) or amount <= 0:
         raise InvalidAmount()
+    if _in_default(s, b):
+        raise BorrowerInDefault()
     if active_loan(s, b):
         raise ActiveLoanExists()
+    if line.drawn:
+        raise StepOutOfOrder("This credit line was already drawn. Prove revenue again to open a new one.")
     if amount > line.limit:
         raise CreditExceeded(f"Credit line is {line.limit} cents; requested {amount}.")
     pool = poolcore.draw(pool_store.load(s), amount)  # raises InsufficientLiquidity
@@ -251,7 +270,8 @@ def draw(s: Session, wallet: str, amount: int) -> LoanRow:
         epochs=LOAN_EPOCHS, installment=state.schedule[0].total,
         state_json=json.dumps(state.to_dict()), status=str(state.status), drawn_day=day,
     )
-    s.add(loan)
+    line.drawn = True
+    s.add_all([loan, line])
     if b.profile == "distressed":
         b.collapse_day = day + DISTRESS_AFTER_DAYS
         s.add(b)
@@ -276,7 +296,7 @@ def private_view(s: Session, wallet: str) -> dict:
     att = _latest(s, AttestationRow, b)
     proof = _latest(s, ProofRow, b)
     line = s.get(CreditLine, b.id)
-    loans = s.exec(select(LoanRow).where(LoanRow.borrower_id == b.id).order_by(col(LoanRow.drawn_day).desc())).all()
+    loans = s.exec(select(LoanRow).where(LoanRow.borrower_id == b.id).order_by(col(LoanRow.created).desc())).all()
     loan = loans[0] if loans else None
     payments = s.exec(select(PrivatePayment).where(PrivatePayment.borrower_id == b.id)
                       .order_by(col(PrivatePayment.id).desc()).limit(80)).all()

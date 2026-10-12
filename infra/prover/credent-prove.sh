@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# credent-prove <commit|prove|verify>
+# credent-prove <commit|prove|verify|vk>
+#   vk    : the circuit's canonical verification key -> /work/vk
 #   commit: /work/Prover.toml -> /work/commitment (0x-hex circuit output)
 #   prove : /work/Prover.toml -> /work/out/{proof,public_inputs,vk}
 #   verify: /work/{proof,public_inputs,vk} -> exit 0 if valid
@@ -39,10 +40,13 @@ case "$mode" in
     t3=$(now)
     printf '{"witness": %d, "prove": %d, "verify": %d}\n' $((t1 - t0)) $((t2 - t1)) $((t3 - t2)) > "$WORK/out/timings.json"
     ;;
+  vk)
+    cp "$CIRCUIT/target/vk/vk" "$WORK/vk"
+    ;;
   verify)
     bb verify -p "$WORK/proof" -i "$WORK/public_inputs" -k "$WORK/vk" > "$WORK/verify.log" 2>&1 \
       || { cat "$WORK/verify.log" >&2; exit 1; }
     ;;
   *)
-    echo "usage: credent-prove <commit|prove|verify>" >&2; exit 2 ;;
+    echo "usage: credent-prove <commit|prove|verify|vk>" >&2; exit 2 ;;
 esac

@@ -1,6 +1,7 @@
 """Read models for /public routes. Built only from public fields, never from Private* tables."""
 
 import base64
+import hashlib
 import json
 import time
 
@@ -11,6 +12,7 @@ from credent.anchor import SolanaAnchor, memo_text
 from credent.api import schemas as S
 from credent.core import pool as poolcore
 from credent.core.sweep import LoanStatus
+from credent.crypto.keys import KeyStore, pubkey_b58
 from credent.errors import NotFound
 from credent.models import AttestationRow, Block, CreditLine, LedgerEvent, LoanRow, NavSnapshot, ProofRow
 from credent.services import borrower as borrowers
@@ -123,15 +125,28 @@ def proof(s: Session, proof_id: str) -> S.PublicProof:
     )
 
 
-def verify_proof(s: Session, proof_id: str, prover: Prover) -> S.ProofVerifyOut:
-    """Independent re-verification of stored artifacts (runs bb verify)."""
+def verify_proof(s: Session, proof_id: str, prover: Prover, keys: KeyStore) -> S.ProofVerifyOut:
+    """Independent re-verification. Trusts nothing stored beside the proof: the VK is the
+    circuit's canonical one (also pinned by hash in the ledger) and the notary key is the
+    server's published key, not whatever key the attestation row carries."""
     pp = proof(s, proof_id)
+    canonical_vk = prover.vk_b64()
+    ledger_vk_hash = None
+    for e in s.exec(select(LedgerEvent.payload_json).where(LedgerEvent.type == "ProofVerified")):
+        payload = json.loads(e)
+        if payload.get("proof_id") == proof_id:
+            ledger_vk_hash = payload.get("vk_hash")
+    sha = lambda v: hashlib.sha256(v.encode()).hexdigest()  # noqa: E731
+    vk_ok = pp.vk_b64 == canonical_vk and ledger_vk_hash == sha(canonical_vk)
     t0 = time.perf_counter()
-    proof_ok = prover.verify(ProofArtifacts(pp.proof_b64, pp.public_inputs_b64, pp.vk_b64))
+    proof_ok = prover.verify(ProofArtifacts(pp.proof_b64, pp.public_inputs_b64, canonical_vk))
     ms = int((time.perf_counter() - t0) * 1000)
+    trusted = pp.attestation.notary_pubkey == pubkey_b58(keys.get("notary"))
     att_ok = borrowers.verify_attestation(borrowers.to_attestation(s.get(AttestationRow, pp.attestation.id)))
     th, cm = parse_public_inputs(base64.b64decode(pp.public_inputs_b64))
     t_ok, c_ok = th == pp.threshold, cm == pp.attestation.commitment
-    return S.ProofVerifyOut(proof_valid=proof_ok, attestation_valid=att_ok, threshold_bound=t_ok,
-                            commitment_bound=c_ok, valid=proof_ok and att_ok and t_ok and c_ok,
-                            verifier="UltraHonk (bb verify)", ms=ms)
+    return S.ProofVerifyOut(
+        proof_valid=proof_ok, attestation_valid=att_ok, notary_trusted=trusted, vk_pinned=vk_ok,
+        threshold_bound=t_ok, commitment_bound=c_ok,
+        valid=proof_ok and att_ok and trusted and vk_ok and t_ok and c_ok,
+        verifier="UltraHonk (bb verify)", ms=ms)

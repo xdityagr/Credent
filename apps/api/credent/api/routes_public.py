@@ -80,7 +80,7 @@ def proof(proof_id: str, s: SessionDep) -> S.PublicProof:
 
 @router.post("/proofs/{proof_id}/verify")
 def verify_proof(proof_id: str, s: SessionDep, ctx: CtxDep) -> S.ProofVerifyOut:
-    return public.verify_proof(s, proof_id, ctx.prover)
+    return public.verify_proof(s, proof_id, ctx.prover, ctx.keys)
 
 
 @router.get("/stream")

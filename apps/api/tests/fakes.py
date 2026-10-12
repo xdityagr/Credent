@@ -26,6 +26,9 @@ class FakeProver:
             timings_ms={"witness": 1, "prove": 1, "verify": 1},
         )
 
+    def vk_b64(self) -> str:
+        return base64.b64encode(b"fake-vk").decode()
+
     def verify(self, a: ProofArtifacts) -> bool:
         pi = base64.b64decode(a.public_inputs_b64)
         return base64.b64decode(a.proof_b64) == hashlib.sha256(pi + b"fake").digest()

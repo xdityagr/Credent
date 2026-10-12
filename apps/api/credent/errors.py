@@ -97,3 +97,9 @@ class SimDisabled(DomainError):
     """Simulation controls are disabled."""
     code = "SIM_DISABLED"
     status = 403
+
+
+class BorrowerInDefault(DomainError):
+    """This borrower has a defaulted loan and cannot open or draw new credit."""
+    code = "BORROWER_IN_DEFAULT"
+    status = 409

@@ -105,6 +105,23 @@ def _write_off(s: Session, loan: LoanRow, state, day: int) -> None:
                                             "junior": la.junior, "senior": la.senior})
 
 
+def _close(s: Session, loan: LoanRow, day: int):
+    """Close a loan's current epoch: allocate what was swept and publish the outcome."""
+    before = borrowers.loan_state(loan)
+    state, r = close_epoch(before)
+    _save_loan(s, loan, state)
+    payload = {"loan_id": loan.id, "borrower": loan.borrower_id, "epoch": r.epoch,
+               "due": r.due, "paid": r.paid}
+    if r.event == "InstallmentShort":
+        payload |= {"shortfall": r.shortfall, "consecutive_short": state.consecutive_short}
+    ledger.append(s, day, r.event, payload)
+    if state.status == LoanStatus.LATE and before.status == LoanStatus.ACTIVE:
+        ledger.append(s, day, "LoanLate", {"loan_id": loan.id, "borrower": loan.borrower_id})
+    elif state.status == LoanStatus.REPAID:
+        ledger.append(s, day, "LoanRepaid", {"loan_id": loan.id, "borrower": loan.borrower_id})
+    return state, r
+
+
 def _settle_week(s: Session, day: int) -> None:
     interest = principal = 0
     settled: list[str] = []
@@ -112,22 +129,11 @@ def _settle_week(s: Session, day: int) -> None:
     for loan in _open_loans(s):
         if day - loan.drawn_day < EPOCH_DAYS:
             continue  # first installment falls due at the next boundary
-        before = borrowers.loan_state(loan)
-        state, r = close_epoch(before)
-        _save_loan(s, loan, state)
+        state, r = _close(s, loan, day)
         interest += r.interest
         principal += r.principal
         settled.append(loan.id)
-        payload = {"loan_id": loan.id, "borrower": loan.borrower_id, "epoch": r.epoch,
-                   "due": r.due, "paid": r.paid}
-        if r.event == "InstallmentShort":
-            payload |= {"shortfall": r.shortfall, "consecutive_short": state.consecutive_short}
-        ledger.append(s, day, r.event, payload)
-        if state.status == LoanStatus.LATE and before.status == LoanStatus.ACTIVE:
-            ledger.append(s, day, "LoanLate", {"loan_id": loan.id, "borrower": loan.borrower_id})
-        elif state.status == LoanStatus.REPAID:
-            ledger.append(s, day, "LoanRepaid", {"loan_id": loan.id, "borrower": loan.borrower_id})
-        elif state.status == LoanStatus.DEFAULTED:
+        if state.status == LoanStatus.DEFAULTED:
             defaults.append((loan, state))
 
     pool, d = poolcore.distribute(pool_store.load(s), interest, principal, EPOCH_DAYS)
@@ -182,9 +188,22 @@ def force_default(s: Session, loan_id: str) -> None:
     state = borrowers.loan_state(loan)
     if state.status in CLOSED:
         raise StepOutOfOrder(f"Loan {loan_id} is already {state.status}.")
+    day = clock.today(s)
+    if state.swept:
+        # Cash already swept this week belongs to the pool: settle it before the write-off.
+        state, r = _close(s, loan, day)
+        pool, d = poolcore.distribute(pool_store.load(s), r.interest, r.principal, 0)
+        pool_store.save(s, pool)
+        ledger.append(s, day, "InterestDistributed", {
+            "loans": [loan.id], "interest": d.interest, "principal": d.principal, "fee": d.fee,
+            "senior": d.senior, "junior": d.junior, "senior_arrears": d.senior_arrears,
+        })
+        if state.status == LoanStatus.REPAID:
+            s.commit()
+            return
     state.status = LoanStatus.DEFAULTED
     _save_loan(s, loan, state)
-    _write_off(s, loan, state, clock.today(s))
+    _write_off(s, loan, state, day)
     s.commit()
 
 

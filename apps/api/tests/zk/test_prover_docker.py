@@ -43,3 +43,8 @@ def test_tampered_public_inputs_fail(prover):
     raw[31] ^= 1  # change the threshold
     bad = replace(art, public_inputs_b64=base64.b64encode(bytes(raw)).decode())
     assert not prover.verify(bad)
+
+
+def test_canonical_vk_matches_proof_vk(prover):
+    art = prover.prove(DAILY, SALT, 5_000_000)
+    assert prover.vk_b64() == art.vk_b64

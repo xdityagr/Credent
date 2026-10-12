@@ -129,6 +129,8 @@ export interface PublicProof {
 export interface ProofVerify {
   proof_valid: boolean;
   attestation_valid: boolean;
+  notary_trusted: boolean;
+  vk_pinned: boolean;
   threshold_bound: boolean;
   commitment_bound: boolean;
   valid: boolean;
