@@ -8,6 +8,8 @@ CIRCUIT=${CREDENT_CIRCUIT:-/circuit}
 WORK=${CREDENT_WORK:-/work}
 mode=${1:-}
 
+now() { date +%s%3N; }
+
 execute() {
   local tmp
   tmp=$(mktemp -d)
@@ -24,13 +26,18 @@ case "$mode" in
     test -s "$WORK/commitment"
     ;;
   prove)
+    t0=$(now)
     tmp=$(execute)
+    t1=$(now)
     mkdir -p "$WORK/out"
     bb prove -b "$tmp/target/revenue_proof.json" -w "$tmp/target/revenue_proof.gz" \
       -k "$CIRCUIT/target/vk/vk" -o "$WORK/out" > "$WORK/prove.log" 2>&1 || { cat "$WORK/prove.log" >&2; exit 4; }
+    t2=$(now)
     cp "$CIRCUIT/target/vk/vk" "$WORK/out/vk"
     bb verify -p "$WORK/out/proof" -i "$WORK/out/public_inputs" -k "$WORK/out/vk" > "$WORK/verify.log" 2>&1 \
       || { cat "$WORK/verify.log" >&2; exit 5; }
+    t3=$(now)
+    printf '{"witness": %d, "prove": %d, "verify": %d}\n' $((t1 - t0)) $((t2 - t1)) $((t3 - t2)) > "$WORK/out/timings.json"
     ;;
   verify)
     bb verify -p "$WORK/proof" -i "$WORK/public_inputs" -k "$WORK/vk" > "$WORK/verify.log" 2>&1 \
