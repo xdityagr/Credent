@@ -1,39 +1,46 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, errorMessage } from "./api";
+import { ApiError, api, errorMessage } from "./api";
 import { useLive } from "./live";
+
+interface Result<T> {
+  key: string;
+  data: T | null;
+  error: string | null;
+  code: string | null;
+}
 
 /**
  * GET `path` and keep it fresh: refetches whenever the public ledger changes.
  * Pass `null` to skip. Keeps the previous data while refetching.
  */
-export function useApi<T>(path: string | null, token?: string | null, extraKey: unknown = null) {
+export function useApi<T>(path: string | null, token?: string | null) {
   const { version } = useLive();
-  const [data, setData] = useState<T | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(path !== null);
   const [nonce, setNonce] = useState(0);
+  const [result, setResult] = useState<Result<T>>({ key: "", data: null, error: null, code: null });
   const seq = useRef(0);
+  const key = `${path}|${token ?? ""}|${version}|${nonce}`;
 
   useEffect(() => {
-    if (path === null) {
-      setLoading(false);
-      return;
-    }
+    if (path === null) return;
     const mine = ++seq.current;
-    setLoading(true);
     api<T>(path, { token })
-      .then((d) => {
-        if (mine === seq.current) {
-          setData(d);
-          setError(null);
-        }
+      .then((data) => {
+        if (mine === seq.current) setResult({ key, data, error: null, code: null });
       })
-      .catch((e) => mine === seq.current && setError(errorMessage(e)))
-      .finally(() => mine === seq.current && setLoading(false));
-  }, [path, token, version, nonce, extraKey]);
+      .catch((e) => {
+        if (mine !== seq.current) return;
+        setResult((r) => ({
+          key,
+          data: r.data,
+          error: errorMessage(e),
+          code: e instanceof ApiError ? e.code : null,
+        }));
+      });
+  }, [path, token, key]);
 
   const refresh = useCallback(() => setNonce((n) => n + 1), []);
-  return { data, error, loading, refresh };
+  const loading = path !== null && result.key !== key;
+  return { data: path === null ? null : result.data, error: result.error, code: result.code, loading, refresh };
 }

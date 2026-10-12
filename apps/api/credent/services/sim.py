@@ -142,6 +142,11 @@ def _settle_week(s: Session, day: int) -> None:
     ledger.seal_block(s, day)
 
 
+def _tick(s: Session, day: int) -> None:
+    """Non-ledger SSE notice so live views refresh private state (payments) between settlements."""
+    s.info.setdefault("published", []).append({"type": "SimTick", "day": day})
+
+
 def advance(s: Session, days: int) -> int:
     if not 1 <= days <= 365:
         raise InvalidAmount("Advance between 1 and 365 days.")
@@ -155,6 +160,7 @@ def advance(s: Session, days: int) -> int:
         s.add(st)
         if st.day % EPOCH_DAYS == 0:
             _settle_week(s, st.day)
+        _tick(s, st.day)
         s.commit()
     return clock.today(s)
 
@@ -166,6 +172,7 @@ def payment(s: Session, borrower_id: str, amount: int) -> PrivatePayment:
     if b is None:
         raise NotFound(f"Borrower {borrower_id} not found.")
     pay = _route(s, b, clock.today(s), amount)
+    _tick(s, clock.today(s))
     s.commit()
     return pay
 

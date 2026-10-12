@@ -27,7 +27,9 @@ export function short(hash: string | null | undefined, head = 6, tail = 4): stri
   if (!hash) return "";
   const h = hash.startsWith("0x") ? hash.slice(2) : hash;
   const prefix = hash.startsWith("0x") ? "0x" : "";
-  return h.length <= head + tail + 1 ? hash : `${prefix}${h.slice(0, head)}…${h.slice(-tail)}`;
+  if (h.length <= head + tail + 1) return hash;
+  // slice(-0) would return the whole string, so tail=0 needs its own branch.
+  return `${prefix}${h.slice(0, head)}…${tail > 0 ? h.slice(-tail) : ""}`;
 }
 
 /** Sim days are counted from the start of the 90-day revenue history window. */

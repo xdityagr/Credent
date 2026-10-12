@@ -1,7 +1,7 @@
 "use client";
 
 import bs58 from "bs58";
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useMemo, useSyncExternalStore } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { api } from "./api";
 
@@ -13,6 +13,7 @@ export interface Session {
 
 interface SessionCtx {
   session: Session | null;
+  /** False during server render / hydration, true once localStorage has been read. */
   ready: boolean;
   signInWithWallet: () => Promise<void>;
   signInDemo: () => Promise<void>;
@@ -20,28 +21,38 @@ interface SessionCtx {
 }
 
 const KEY = "credent.session";
+const EVENT = "credent-session";
 const Ctx = createContext<SessionCtx | null>(null);
 
+function subscribe(cb: () => void) {
+  window.addEventListener("storage", cb);
+  window.addEventListener(EVENT, cb);
+  return () => {
+    window.removeEventListener("storage", cb);
+    window.removeEventListener(EVENT, cb);
+  };
+}
+
+const noop = () => () => {};
+
+function write(s: Session | null) {
+  if (s) localStorage.setItem(KEY, JSON.stringify(s));
+  else localStorage.removeItem(KEY);
+  window.dispatchEvent(new Event(EVENT));
+}
+
 export function SessionProvider({ children }: { children: React.ReactNode }) {
-  const [session, setSession] = useState<Session | null>(null);
-  const [ready, setReady] = useState(false);
-  const { publicKey, signMessage, disconnect } = useWallet();
-
-  useEffect(() => {
+  const raw = useSyncExternalStore(subscribe, () => localStorage.getItem(KEY), () => null);
+  const ready = useSyncExternalStore(noop, () => true, () => false);
+  const session = useMemo<Session | null>(() => {
+    if (!raw) return null;
     try {
-      const raw = localStorage.getItem(KEY);
-      if (raw) setSession(JSON.parse(raw));
+      return JSON.parse(raw) as Session;
     } catch {
-      localStorage.removeItem(KEY);
+      return null;
     }
-    setReady(true);
-  }, []);
-
-  const store = useCallback((s: Session | null) => {
-    setSession(s);
-    if (s) localStorage.setItem(KEY, JSON.stringify(s));
-    else localStorage.removeItem(KEY);
-  }, []);
+  }, [raw]);
+  const { publicKey, signMessage, disconnect } = useWallet();
 
   const signInWithWallet = useCallback(async () => {
     if (!publicKey) throw new Error("Connect a wallet first.");
@@ -49,18 +60,17 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     const wallet = publicKey.toBase58();
     const { message } = await api<{ message: string }>("/auth/challenge", { body: { wallet } });
     const sig = await signMessage(new TextEncoder().encode(message));
-    const s = await api<Session>("/auth/verify", { body: { wallet, signature: bs58.encode(sig) } });
-    store(s);
-  }, [publicKey, signMessage, store]);
+    write(await api<Session>("/auth/verify", { body: { wallet, signature: bs58.encode(sig) } }));
+  }, [publicKey, signMessage]);
 
   const signInDemo = useCallback(async () => {
-    store(await api<Session>("/auth/demo", { method: "POST" }));
-  }, [store]);
+    write(await api<Session>("/auth/demo", { method: "POST" }));
+  }, []);
 
   const signOut = useCallback(() => {
-    store(null);
+    write(null);
     disconnect().catch(() => {});
-  }, [store, disconnect]);
+  }, [disconnect]);
 
   const value = useMemo(
     () => ({ session, ready, signInWithWallet, signInDemo, signOut }),

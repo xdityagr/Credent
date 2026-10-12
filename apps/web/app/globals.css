@@ -22,6 +22,9 @@
   --color-loss-soft: #f3d9d5;
   --color-warn: #a15c07;
   --color-warn-soft: #f4e4c9;
+  /* chart marks (validated: lightness band, chroma, CVD) */
+  --color-senior-mark: #2f55a4;
+  --color-junior-mark: #2e8a5f;
   --color-envelope: #3e5c9a;
   --color-envelope-bg: #dde4f1;
 
@@ -39,7 +42,6 @@ html {
   background: var(--color-paper);
   color: var(--color-ink);
   font-family: var(--font-sans);
-  font-feature-settings: "tnum" 1, "lnum" 1;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -58,16 +60,11 @@ body {
   border-radius: 3px;
 }
 
-/* Accountant's ruled sheet: faint horizontal rules every line. */
+/* Public ledger surface: crisp sheet with an accountant's double margin rule on the left. */
 .ledger-sheet {
   background-color: var(--color-sheet);
-  background-image: repeating-linear-gradient(
-    to bottom,
-    transparent 0,
-    transparent 31px,
-    color-mix(in srgb, var(--color-rule) 55%, transparent) 31px,
-    color-mix(in srgb, var(--color-rule) 55%, transparent) 32px
-  );
+  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--color-loss) 22%, transparent),
+    inset 6px 0 0 var(--color-sheet), inset 7px 0 0 color-mix(in srgb, var(--color-loss) 22%, transparent);
 }
 
 /* Bank security-envelope tint: dense interlocking diagonal glyph pattern. */
@@ -125,4 +122,10 @@ body {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* Schibsted Grotesk's tabular figures also widen commas and periods, so figures
+   use lining proportional digits; tables stay aligned by right-aligning columns. */
+.tabular-nums {
+  font-variant-numeric: lining-nums proportional-nums;
 }
