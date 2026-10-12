@@ -1,58 +1,173 @@
-// Mirrors apps/api/credent/api/schemas.py (Public*) and the owner-only views.
+// Types for the v2 API contract. Money is integer cents everywhere.
 
-export type LoanStatus = "ACTIVE" | "LATE" | "DEFAULTED" | "REPAID";
+// ---------------- identity ----------------
 
-export interface PublicTranche {
-  name: "senior" | "junior";
-  nav: number;
-  shares: number;
-  price_e6: number;
-  coupon_bps: number | null;
-  coupon_arrears: number;
-  writedown: number;
-  loss_position: string;
+export type OrgKind = "BORROWER" | "LENDER";
+export type OnboardingStep = "verify_email" | "role" | "company" | "logo" | "wallet" | "done";
+
+export interface User {
+  id: string;
+  email: string;
+  name: string;
+  email_verified: boolean;
+  avatar_url: string | null;
 }
 
-export interface PublicPool {
+export interface Org {
+  id: string;
+  kind: OrgKind;
   name: string;
-  day: number;
+  slug: string;
+  website: string | null;
+  sector: string | null;
+  country: string | null;
+  description: string | null;
+  logo_url: string | null;
+  pseudonym: string;
+  is_demo: boolean;
+}
+
+export interface Wallet {
+  address: string;
+  kind: "EXTERNAL" | "CUSTODIAL";
+  is_primary: boolean;
+  verified_at: string | null;
+}
+
+export interface Me {
+  user: User;
+  org: Org | null;
+  membership: { role: string } | null;
+  wallets: Wallet[];
+  onboarding: { step: OnboardingStep };
+}
+
+export interface SessionInfo {
+  id: string;
+  created_at: string;
+  ip: string | null;
+  user_agent: string | null;
+  current: boolean;
+}
+
+export interface PublicOrgProfile {
+  name: string;
+  slug: string;
+  kind: OrgKind;
+  website: string | null;
+  sector: string | null;
+  country: string | null;
+  description: string | null;
+  logo_url: string | null;
+  pools: PublicPool[];
+}
+
+export interface Notification {
+  id: string;
+  kind: string;
+  title: string;
+  body: string;
+  href: string | null;
+  created_at: string;
+  read_at: string | null;
+}
+
+// ---------------- chain ----------------
+
+export interface ChainConfig {
+  cluster: string;
+  mint: string;
+  decimals: number;
+  fee_payer: string;
+  fee_payer_lamports: number;
+  enabled: boolean;
+}
+
+export interface ChainBalance {
+  address: string;
+  /** cUSD in cents */
+  cusd: number;
+  sol_lamports: number;
+}
+
+export interface FaucetResult {
+  signature: string;
+  explorer_url: string;
+}
+
+// ---------------- public ----------------
+
+export interface PublicStats {
+  pools: number;
+  total_nav: number;
+  outstanding: number;
+  loans_active: number;
+  loans_repaid: number;
+  loans_defaulted: number;
+  proofs_verified: number;
+  ledger_events: number;
+  date: string;
+}
+
+export interface TrancheSummary {
+  nav: number;
+  price_e6: number;
+  coupon_bps?: number;
+  writedown: number;
+}
+
+export type PoolStatus = "DRAFT" | "FUNDING" | "OPEN" | "CLOSED";
+
+export interface PublicPool {
+  id: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  status: PoolStatus;
+  manager: { name: string; slug: string; logo_url: string | null };
+  target_size: number;
+  total_nav: number;
   cash: number;
   outstanding: number;
-  treasury: number;
-  total_nav: number;
   utilization_bps: number;
-  leverage_x100: number;
-  subordination_room: number;
-  senior: PublicTranche;
-  junior: PublicTranche;
+  senior: TrancheSummary & { coupon_bps: number };
+  junior: TrancheSummary;
+  borrower_apr_bps: number;
+  advance_bps: number;
+  term_epochs: number;
+  min_threshold: number;
+  max_loan: number;
   loans_active: number;
-  loans_late: number;
-  loans_defaulted: number;
-  loans_repaid: number;
-  total_interest: number;
-  total_losses: number;
-  total_recovered: number;
+  reserves: { ok: boolean | null; onchain: number | null; checked_at: string | null };
+  vault_address: string | null;
 }
 
 export interface NavPoint {
   day: number;
+  date: string;
   senior_nav: number;
   junior_nav: number;
   senior_price_e6: number;
   junior_price_e6: number;
-  outstanding: number;
-  cash: number;
 }
+
+export interface PublicPoolDetail extends PublicPool {
+  nav_history: NavPoint[];
+  loans: PublicLoan[];
+}
+
+export type LoanStatus = "ACTIVE" | "LATE" | "DEFAULTED" | "REPAID";
 
 export interface PublicEpoch {
   epoch: number;
   due: number;
   paid: number;
-  event: "InstallmentPaid" | "InstallmentShort";
+  event: "InstallmentPaid" | "InstallmentShort" | string;
 }
 
 export interface PublicLoan {
   id: string;
+  pool_id?: string;
   borrower: string;
   principal: number;
   apr_bps: number;
@@ -77,6 +192,7 @@ export interface PublicEvent {
   prev_hash: string;
   hash: string;
   block: number | null;
+  pool_id?: string | null;
 }
 
 export interface PublicLoanDetail extends PublicLoan {
@@ -136,109 +252,4 @@ export interface ProofVerify {
   valid: boolean;
   verifier: string;
   ms: number;
-}
-
-export interface PublicStatus {
-  day: number;
-  seeded: boolean;
-  seeding: boolean;
-  seed_error: string | null;
-  sim_enabled: boolean;
-  prover: { ok: boolean; message: string | null };
-  anchor: {
-    enabled: boolean;
-    cluster: string;
-    address: string;
-    balance_lamports: number | null;
-    last_error: string | null;
-  };
-  notary_pubkey: string;
-  processor_pubkey: string;
-}
-
-export interface Profile {
-  key: string;
-  label: string;
-  description: string;
-}
-
-// ---- owner-only ----
-
-export interface SeriesView {
-  source: "stripe-zktls-sim" | "receipts";
-  period_start: number;
-  period_end: number;
-  daily: number[];
-  total: number;
-  suggested_threshold: number;
-}
-
-export interface PrivatePayment {
-  id: number;
-  borrower_id: string;
-  loan_id: string | null;
-  day: number;
-  amount: number;
-  swept: number;
-  released: number;
-}
-
-export interface LoanStateView {
-  schedule: { interest: number; principal: number }[];
-  outstanding: number;
-  epoch: number;
-  swept: number;
-  arrears_interest: number;
-  arrears_principal: number;
-  consecutive_short: number;
-  status: LoanStatus;
-  history: PublicEpoch[];
-}
-
-export interface BorrowerView {
-  borrower: {
-    id: string;
-    wallet: string;
-    profile: string;
-    business: string;
-    description: string;
-  } | null;
-  series?: SeriesView | null;
-  attestation?: (PublicAttestation & { borrower_id: string; day: number }) | null;
-  proof?: {
-    id: string;
-    attestation_id: string;
-    threshold: number;
-    commitment: string;
-    verified: boolean;
-    day: number;
-    timings_ms: Record<string, number>;
-  } | null;
-  credit_line?: { borrower_id: string; limit: number; proof_id: string; opened_day: number } | null;
-  loan?: {
-    id: string;
-    principal: number;
-    apr_bps: number;
-    epochs: number;
-    installment: number;
-    status: LoanStatus;
-    drawn_day: number;
-    due_now: number;
-    state: LoanStateView;
-  } | null;
-  payments?: PrivatePayment[];
-  totals?: { swept: number; released: number };
-}
-
-export interface ProveResult {
-  proof_id: string;
-  threshold: number;
-  commitment: string;
-  timings_ms: Record<string, number>;
-}
-
-export interface LenderPositions {
-  wallet: string;
-  balance: number;
-  positions: { tranche: "senior" | "junior"; shares: number; deposited: number; value: number; pnl: number }[];
 }

@@ -1,117 +1,382 @@
 @import "tailwindcss";
 
 /*
- * Credent: ledger paper and security envelopes.
- * Public data is ruled ledger ink. Private data hides behind a bank-envelope
- * security tint that only its owner can open.
+ * Credent v2: "Ember & Horizon on black".
+ * Ember = the private / borrower side. Horizon = the public / lender side.
+ * Everything else is black, hairlines and three steps of grey ink.
  */
 @theme {
-  --color-paper: #eef1ea;
-  --color-paper-deep: #e3e8de;
-  --color-sheet: #f8faf5;
-  --color-rule: #c9d3c6;
-  --color-rule-strong: #9fae9c;
-  --color-ink: #1c2b45;
-  --color-ink-soft: #4a5873;
-  --color-ink-faint: #7d889b;
-  --color-senior: #1c2b45;
-  --color-junior: #2e6a52;
-  --color-junior-soft: #cfe1d6;
-  --color-senior-soft: #d3dae8;
-  --color-loss: #b42318;
-  --color-loss-soft: #f3d9d5;
-  --color-warn: #a15c07;
-  --color-warn-soft: #f4e4c9;
-  /* chart marks (validated: lightness band, chroma, CVD) */
-  --color-senior-mark: #2f55a4;
-  --color-junior-mark: #2e8a5f;
-  --color-envelope: #3e5c9a;
-  --color-envelope-bg: #dde4f1;
+  --color-*: initial;
+  --color-transparent: transparent;
+  --color-current: currentColor;
+  --color-black: #000000;
+  --color-white: #ffffff;
 
-  --font-sans: var(--font-schibsted), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
+  /* surfaces */
+  --color-canvas: #000000;
+  --color-raised: #0b0b0c;
+  --color-raised-2: #121214;
+  --color-raised-3: #1a1a1d;
 
-  --radius-sheet: 6px;
+  /* hairlines */
+  --color-line: rgb(255 255 255 / 0.08);
+  --color-line-strong: rgb(255 255 255 / 0.14);
+  --color-line-bright: rgb(255 255 255 / 0.24);
+
+  /* ink */
+  --color-ink: #ededed;
+  --color-ink-2: #9a9a9f;
+  --color-ink-3: #6b6b70;
+
+  /* ember (private / borrower) */
+  --color-ember-1: #ff8a3d;
+  --color-ember-2: #e2452b;
+  --color-ember-3: #3a0f0a;
+  --color-teal-deep: #0f3b3a;
+
+  /* horizon (public / lender) */
+  --color-horizon-1: #2d5bff;
+  --color-horizon-2: #8fb4ff;
+  --color-rim: #7fe3ff;
+
+  /* data marks (validated all-pairs on #000/#0B0B0C/#121214, dark band) */
+  --color-senior: #4f7fff;
+  --color-junior: #1fa97a;
+  --color-loss: #e8473d;
+  /* text tones for state (always paired with an icon or label) */
+  --color-senior-text: #8fb4ff;
+  --color-junior-text: #4fe0a6;
+  --color-loss-text: #ff6b5e;
+  --color-warn: #ffb547;
+
+  --font-sans: var(--font-outfit), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-instrument), ui-serif, Georgia, serif;
+  --font-display: var(--font-unbounded), var(--font-outfit), ui-sans-serif, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
+
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  --animate-shimmer: shimmer 1.8s linear infinite;
+  --animate-float: float 7s ease-in-out infinite;
+  --animate-pulse-dot: pulse-dot 2.2s ease-in-out infinite;
+
+  @keyframes shimmer {
+    from { background-position: 200% 0; }
+    to { background-position: -200% 0; }
+  }
+  @keyframes float {
+    0%, 100% { translate: 0 0; }
+    50% { translate: 0 -10px; }
+  }
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; scale: 1; }
+    50% { opacity: 0.45; scale: 0.8; }
+  }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+}
+@keyframes pop-in {
+  from { opacity: 0; scale: 0.96; }
+}
+@keyframes slide-in-right {
+  from { translate: 100% 0; }
+}
+@keyframes slide-in-left {
+  from { translate: -100% 0; }
+}
+@keyframes accordion-down {
+  from { height: 0; }
+  to { height: var(--radix-accordion-content-height); }
+}
+@keyframes accordion-up {
+  from { height: var(--radix-accordion-content-height); }
+  to { height: 0; }
 }
 
 :root {
-  color-scheme: light;
+  color-scheme: dark;
+  --ember: linear-gradient(135deg, #ff8a3d 0%, #e2452b 45%, #3a0f0a 100%);
+  --horizon: linear-gradient(135deg, #2d5bff 0%, #8fb4ff 100%);
 }
 
 html {
-  background: var(--color-paper);
+  background: #000;
   color: var(--color-ink);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 body {
   min-height: 100dvh;
+  background: #000;
 }
 
 ::selection {
-  background: var(--color-junior-soft);
-  color: var(--color-ink);
+  background: rgb(45 91 255 / 0.45);
+  color: #fff;
 }
 
 :focus-visible {
-  outline: 2px solid var(--color-envelope);
-  outline-offset: 2px;
-  border-radius: 3px;
+  outline: 2px solid var(--color-rim);
+  outline-offset: 3px;
 }
 
-/* Public ledger surface: crisp sheet with an accountant's double margin rule on the left. */
-.ledger-sheet {
-  background-color: var(--color-sheet);
-  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--color-loss) 22%, transparent),
-    inset 6px 0 0 var(--color-sheet), inset 7px 0 0 color-mix(in srgb, var(--color-loss) 22%, transparent);
+/* tabular figures without widened punctuation: Outfit keeps commas narrow */
+.num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
 }
 
-/* Bank security-envelope tint: dense interlocking diagonal glyph pattern. */
-.envelope-tint {
-  background-color: var(--color-envelope-bg);
+/* ---------------- glass ---------------- */
+
+.glass {
+  background: linear-gradient(180deg, rgb(255 255 255 / 0.07), rgb(255 255 255 / 0.025));
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  backdrop-filter: blur(18px) saturate(140%);
+  border: 1px solid rgb(255 255 255 / 0.1);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.12),
+    inset 0 -1px 0 rgb(255 255 255 / 0.03),
+    0 10px 40px -12px rgb(0 0 0 / 0.8);
+}
+
+.panel {
+  background: linear-gradient(180deg, #0f0f11, #0a0a0b);
+  border: 1px solid var(--color-line);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.04);
+}
+
+/* gradient hairline border via mask (works on any radius) */
+.edge {
+  position: relative;
+}
+.edge::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: var(--edge, linear-gradient(180deg, rgb(255 255 255 / 0.35), rgb(255 255 255 / 0.04) 45%, rgb(255 255 255 / 0.12)));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* ---------------- liquid glass button ---------------- */
+
+.lg-btn {
+  --lg-tint: rgb(255 255 255 / 0.06);
+  --lg-glow: transparent;
+  --edge: linear-gradient(180deg, rgb(255 255 255 / 0.55), rgb(255 255 255 / 0.06) 40%, rgb(255 255 255 / 0.18));
+  position: relative;
+  isolation: isolate;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 999px;
+  white-space: nowrap;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  color: #fff;
+  background:
+    radial-gradient(120% 140% at 50% -30%, rgb(255 255 255 / 0.22), transparent 55%),
+    linear-gradient(180deg, var(--lg-tint), rgb(255 255 255 / 0.02));
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  backdrop-filter: blur(14px) saturate(160%);
+  box-shadow:
+    inset 0 1px 1px rgb(255 255 255 / 0.35),
+    inset 0 -6px 14px -6px rgb(255 255 255 / 0.12),
+    0 0 0 0.5px rgb(255 255 255 / 0.08),
+    0 8px 30px -6px var(--lg-glow);
+  transition:
+    transform 180ms var(--ease-out-expo),
+    box-shadow 280ms ease,
+    background 280ms ease,
+    opacity 200ms ease;
+}
+.lg-btn::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: var(--edge);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+/* specular highlight */
+.lg-btn::after {
+  content: "";
+  position: absolute;
+  left: 14%;
+  right: 14%;
+  top: 1px;
+  height: 42%;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgb(255 255 255 / 0.28), rgb(255 255 255 / 0));
+  pointer-events: none;
+  z-index: -1;
+  opacity: 0.8;
+}
+.lg-btn:hover {
+  box-shadow:
+    inset 0 1px 1px rgb(255 255 255 / 0.45),
+    inset 0 -6px 16px -6px rgb(255 255 255 / 0.18),
+    0 0 0 0.5px rgb(255 255 255 / 0.12),
+    0 10px 40px -4px var(--lg-glow);
+}
+.lg-btn:active {
+  transform: scale(0.97);
+}
+.lg-btn:disabled,
+.lg-btn[aria-disabled="true"] {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.lg-btn--white {
+  color: #0a0a0a;
+  background:
+    radial-gradient(120% 140% at 50% -20%, #fff, transparent 70%),
+    linear-gradient(180deg, #fafafa, #d9dbe0);
+  --edge: linear-gradient(180deg, #fff, rgb(255 255 255 / 0.4));
+  --lg-glow: rgb(255 255 255 / 0.25);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+.lg-btn--white::after {
+  background: linear-gradient(180deg, rgb(255 255 255 / 0.9), rgb(255 255 255 / 0));
+}
+.lg-btn--ember {
+  background:
+    radial-gradient(120% 140% at 50% -30%, rgb(255 220 190 / 0.55), transparent 55%),
+    linear-gradient(180deg, #ff8a3d, #e2452b 70%, #b8321d);
+  --edge: linear-gradient(180deg, rgb(255 210 170 / 0.95), rgb(255 138 61 / 0.2) 50%, rgb(255 180 120 / 0.5));
+  --lg-glow: rgb(255 110 50 / 0.55);
+}
+.lg-btn--horizon {
+  background:
+    radial-gradient(120% 140% at 50% -30%, rgb(220 232 255 / 0.6), transparent 55%),
+    linear-gradient(180deg, #4d78ff, #2d5bff 70%, #1f44d6);
+  --edge: linear-gradient(180deg, rgb(200 220 255 / 0.95), rgb(127 227 255 / 0.2) 50%, rgb(143 180 255 / 0.6));
+  --lg-glow: rgb(45 91 255 / 0.6);
+}
+.lg-btn--ghost {
+  background: transparent;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  box-shadow: none;
+  --edge: transparent;
+  color: var(--color-ink-2);
+}
+.lg-btn--ghost::after {
+  display: none;
+}
+.lg-btn--ghost:hover {
+  color: #fff;
+  background: rgb(255 255 255 / 0.06);
+  box-shadow: none;
+}
+.lg-btn--danger {
+  --lg-tint: rgb(232 71 61 / 0.14);
+  --edge: linear-gradient(180deg, rgb(255 140 130 / 0.6), rgb(232 71 61 / 0.15));
+  color: #ffd2cd;
+}
+
+/* SVG refraction (hero CTA only) */
+.lg-refract {
+  -webkit-backdrop-filter: url(#lg-refraction) blur(10px) saturate(170%);
+  backdrop-filter: url(#lg-refraction) blur(10px) saturate(170%);
+}
+
+/* ---------------- page furniture ---------------- */
+
+/* Lume-style hairline column grid */
+.column-lines {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 4), 1fr);
+}
+.column-lines > i {
+  border-left: 1px solid rgb(255 255 255 / 0.055);
+}
+.column-lines > i:last-child {
+  border-right: 1px solid rgb(255 255 255 / 0.055);
+}
+
+/* ember dither noise for Redacted */
+.dither {
+  background-color: #1a0805;
   background-image:
-    repeating-linear-gradient(45deg, color-mix(in srgb, var(--color-envelope) 26%, transparent) 0 2px, transparent 2px 7px),
-    repeating-linear-gradient(-45deg, color-mix(in srgb, var(--color-envelope) 18%, transparent) 0 1px, transparent 1px 5px),
-    repeating-linear-gradient(0deg, color-mix(in srgb, var(--color-envelope) 10%, transparent) 0 1px, transparent 1px 3px);
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='1.1' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 0.45  0 0 0 0 0.2  0 0 0 1.4 -0.35'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>"),
+    linear-gradient(110deg, rgb(255 138 61 / 0.35), rgb(226 69 43 / 0.25) 50%, rgb(15 59 58 / 0.45));
+  background-size: 120px 120px, 100% 100%;
 }
 
-/* Loss hatching for written-down capital. */
 .loss-hatch {
-  background-color: var(--color-loss-soft);
-  background-image: repeating-linear-gradient(
-    -45deg,
-    color-mix(in srgb, var(--color-loss) 55%, transparent) 0 2px,
-    transparent 2px 6px
-  );
+  background-color: rgb(232 71 61 / 0.25);
+  background-image: repeating-linear-gradient(135deg, var(--color-loss) 0 2px, transparent 2px 7px);
 }
 
-@keyframes ledger-in {
-  from {
-    background-color: color-mix(in srgb, var(--color-junior-soft) 90%, transparent);
-  }
-  to {
-    background-color: transparent;
-  }
+.skeleton {
+  background: linear-gradient(90deg, rgb(255 255 255 / 0.04) 25%, rgb(255 255 255 / 0.09) 37%, rgb(255 255 255 / 0.04) 63%);
+  background-size: 400% 100%;
+  animation: var(--animate-shimmer);
+  border-radius: 6px;
 }
 
-.row-new {
-  animation: ledger-in 1.6s ease-out;
+/* subtle film grain on the canvas */
+.grain::after {
+  content: "";
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
 }
 
-@keyframes sweep-split {
-  0% {
-    transform: translateY(-6px);
-    opacity: 0;
-  }
-  100% {
-    transform: translateY(0);
-    opacity: 1;
-  }
+/* custom cursor: hide the system one only where ours is mounted */
+html.has-cursor,
+html.has-cursor * {
+  cursor: none !important;
+}
+html.has-cursor input,
+html.has-cursor textarea,
+html.has-cursor select {
+  cursor: text !important;
 }
 
-.sweep-in {
-  animation: sweep-split 0.45s ease-out both;
+/* Lenis */
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+.lenis.lenis-smooth [data-lenis-prevent] {
+  overscroll-behavior: contain;
+}
+.lenis.lenis-stopped {
+  overflow: hidden;
+}
+
+/* scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(255 255 255 / 0.14) transparent;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -121,11 +386,22 @@ body {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
 
-/* Schibsted Grotesk's tabular figures also widen commas and periods, so figures
-   use lining proportional digits; tables stay aligned by right-aligning columns. */
-.tabular-nums {
-  font-variant-numeric: lining-nums proportional-nums;
+/* wallet adapter modal, restyled to the system */
+.wallet-adapter-modal-wrapper {
+  background: #0b0b0c !important;
+  border: 1px solid rgb(255 255 255 / 0.12);
+  border-radius: 24px !important;
+  font-family: var(--font-sans) !important;
+}
+.wallet-adapter-modal-title {
+  font-family: var(--font-sans) !important;
+  font-weight: 500 !important;
+}
+.wallet-adapter-button {
+  font-family: var(--font-sans) !important;
+  border-radius: 14px !important;
 }
