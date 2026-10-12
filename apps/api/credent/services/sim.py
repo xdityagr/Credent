@@ -1,218 +1,177 @@
-"""Deterministic demo world: seeded pool, three borrowers, simulated customer payments.
+"""Demo world: real organisations, pools, proofs, deposits and loans created through the
+same services real users hit, plus a clock that generates customer payments for
+demo businesses.
 
-Week boundaries are global (day % 7 == 0). A loan's first installment falls due at
-the first boundary at least one full week after drawdown, so all loans settle
-together and the pool runs one waterfall per week.
+Demo logins (POST /auth/demo) land in these organisations. Nothing here is a
+shortcut around the protocol: deposits are signed SPL transfers (by the server,
+for custodial demo wallets), loans are drawn from vaults, payments are swept.
 """
 
-import hashlib
-import json
+import secrets
+from datetime import datetime, timezone
 
-from nacl.signing import SigningKey
 from sqlmodel import Session, col, select
 
-from credent import ledger
-from credent.core import pool as poolcore
-from credent.core.sweep import DEFAULT_AFTER, CLOSED, LoanStatus, apply_payment, close_epoch
-from credent.crypto.keys import pubkey_b58
+from credent.auth.security import hash_password
 from credent.db import reset_db
-from credent.errors import InvalidAmount, NotFound, StepOutOfOrder
-from credent.models import Borrower, LoanRow, NavSnapshot, PrivatePayment
-from credent.services import borrower as borrowers
-from credent.services import clock, lender, pool_store
+from credent.errors import DomainError, InvalidAmount
+from credent.models import Organization, RevenueSource, User
+from credent.services import (
+    applications,
+    clock,
+    collections,
+    funds,
+    orgs,
+    pools,
+    revenue,
+    settlement,
+    transfers,
+    wallets,
+)
 from credent.services.context import Ctx
 from credent.sources.profiles import PROFILES, payments_for_day
-from credent.terms import CREDIT_ADVANCE_BPS, EPOCH_DAYS, LOAN_APR_BPS, LOAN_EPOCHS
 
-LENDERS = [("junior", 250_000_00), ("junior", 150_000_00),
-           ("senior", 600_000_00), ("senior", 500_000_00), ("senior", 300_000_00)]
-DEMO_BORROWERS = ["saas", "ecommerce", "distressed"]
+LENDERS = [
+    {"key": "harbor", "name": "Harbor Credit Partners", "sector": "Private credit fund", "country": "United Kingdom",
+     "website": "harborcredit.example",
+     "description": "London-based private credit manager financing revenue-generating SMEs across Europe.",
+     "pool": {"name": "Harbor Revenue Fund I", "target_size": 1_500_000_00, "senior_coupon_bps": 900,
+              "borrower_apr_bps": 1800, "advance_bps": 4000, "term_epochs": 12, "min_threshold": 300_000_00,
+              "min_first_loss": 250_000_00, "auto_approve": False,
+              "description": "Diversified revenue-based credit for SaaS and e-commerce businesses with at least $300k of proven quarterly revenue."},
+     "junior": 400_000_00},
+    {"key": "meridian", "name": "Meridian Capital", "sector": "Venture debt", "country": "United States",
+     "website": "meridian.example",
+     "description": "Venture debt for recurring-revenue software companies.",
+     "pool": {"name": "Meridian SaaS Credit", "target_size": 1_000_000_00, "senior_coupon_bps": 800,
+              "borrower_apr_bps": 1500, "advance_bps": 3500, "term_epochs": 12, "min_threshold": 400_000_00,
+              "min_first_loss": 200_000_00, "auto_approve": True, "auto_approve_max": 250_000_00,
+              "description": "Lower-cost credit for subscription businesses. Applications under $250k with a valid proof are approved automatically."},
+     "junior": 250_000_00},
+]
+CO_INVESTOR = {"key": "atlas", "name": "Atlas Family Office", "sector": "Family office", "country": "Singapore",
+               "website": "atlas.example", "description": "Senior-only allocations to secured private credit.",
+               "senior": {"harbor": 1_100_000_00, "meridian": 600_000_00}}
+BORROWERS = [
+    {"key": "northwind", "profile": "saas", "sector": "B2B SaaS", "country": "India", "pool": "meridian",
+     "website": "northwind.example", "description": "Analytics software for mid-market logistics teams."},
+    {"key": "kestrel", "profile": "ecommerce", "sector": "D2C e-commerce", "country": "Canada", "pool": "harbor",
+     "website": "kestrel.example", "description": "Outdoor gear sold direct to consumers."},
+    {"key": "halcyon", "profile": "distressed", "sector": "Freight brokerage", "country": "Germany", "pool": "harbor",
+     "website": "halcyon.example", "description": "Freight brokerage with one large anchor client."},
+]
+DEMO_DOMAIN = "demo.credent.dev"
 
 
-def _wallet(tag: str) -> str:
-    # Deterministic demo wallets so a reset reproduces the same public book.
-    return pubkey_b58(SigningKey(hashlib.sha256(f"credent-demo:{tag}".encode()).digest()))
+def _demo_user(s: Session, key: str, name: str) -> User:
+    u = User(email=f"{key}@{DEMO_DOMAIN}", password_hash=hash_password(secrets.token_urlsafe(24)), name=name,
+             email_verified_at=datetime.now(timezone.utc))
+    s.add(u)
+    s.flush()
+    return u
+
+
+def _org(s: Session, ctx: Ctx, world: str, key: str, kind: str, spec: dict) -> tuple[User, Organization]:
+    user = _demo_user(s, key, f"{spec['name']} (demo)")
+    org = orgs.create(s, user, kind, {k: spec[k] for k in ("name", "website", "sector", "country", "description")},
+                      is_demo=True)
+    wallets.create_custodial(s, ctx, world, user, org)
+    return user, org
+
+
+def _deposit(s: Session, chain, org: Organization, p, tranche: str, cents: int) -> None:
+    prep = funds.prepare_deposit(s, chain, org, p, tranche, cents)
+    funds.submit_deposit(s, chain, org, prep["intent_id"], None)  # custodial: already signed by the server
 
 
 def reset(engine, ctx: Ctx, warmup_days: int = 28) -> None:
     ctx.prover.ensure_available()  # fail before wiping anything
-    reset_db(engine)
-    with Session(engine) as s:
-        day = clock.today(s)
-        ledger.append(s, day, "PoolCreated", {
-            "name": "Credent Revenue Pool I",
-            "senior_coupon_bps": poolcore.SENIOR_COUPON_BPS, "max_leverage": poolcore.MAX_LEVERAGE,
-            "fee_bps": poolcore.FEE_BPS, "advance_bps": CREDIT_ADVANCE_BPS,
-            "loan_apr_bps": LOAN_APR_BPS, "loan_epochs": LOAN_EPOCHS,
-            "epoch_days": EPOCH_DAYS, "default_after_short_epochs": DEFAULT_AFTER,
-        })
-        for i, (tranche, amount) in enumerate(LENDERS):
-            w = _wallet(f"lender-{i}")
-            lender.faucet(s, w, amount)
-            lender.deposit(s, w, tranche, amount)
-        s.commit()
-        for profile in DEMO_BORROWERS:
-            w = _wallet(f"borrower-{profile}")
-            view = borrowers.connect_stripe(s, w, profile)
-            borrowers.attest(s, ctx, w)
-            borrowers.prove(s, ctx, w, view["suggested_threshold"])
-            line = borrowers.open_credit_line(s, w)
-            borrowers.draw(s, w, line.limit)
+    with ctx.write_lock:
+        reset_db(engine)
+        with Session(engine, expire_on_commit=False) as s:
+            st = clock.state(s)
+            world = st.world
             s.commit()
-        _snapshot(s, day)
-        ledger.seal_block(s, day)
+            chain = ctx.chain(world)
+            chain.bootstrap()
+            seed(s, ctx, chain, world)
+            if warmup_days:
+                advance(s, ctx, warmup_days)
+
+
+def seed(s: Session, ctx: Ctx, chain, world: str) -> None:
+    managers, pool_by_key = {}, {}
+    for spec in LENDERS:
+        user, org = _org(s, ctx, world, spec["key"], "LENDER", spec)
+        funds.faucet(s, chain, org, spec["junior"] + 50_000_00)
+        p = pools.create(s, chain, user, org, spec["pool"])
+        pools.start_funding(s, chain, user, org, p)
         s.commit()
-        if warmup_days:
-            advance(s, warmup_days)
+        _deposit(s, chain, org, p, "junior", spec["junior"])
+        pools.open_for_loans(s, user, org, p)
+        s.commit()
+        managers[spec["key"]], pool_by_key[spec["key"]] = (user, org), p
+    _, atlas = _org(s, ctx, world, CO_INVESTOR["key"], "LENDER", CO_INVESTOR)
+    funds.faucet(s, chain, atlas, sum(CO_INVESTOR["senior"].values()))
+    s.commit()
+    for key, amount in CO_INVESTOR["senior"].items():
+        _deposit(s, chain, atlas, pool_by_key[key], "senior", amount)
+    for spec in BORROWERS:
+        prof = PROFILES[spec["profile"]]
+        user, org = _org(s, ctx, world, spec["key"], "BORROWER", {**spec, "name": prof.label})
+        src = revenue.connect_demo(s, org, spec["profile"])
+        series = revenue.series(s, src)
+        proof = revenue.prove(s, ctx, org, src, revenue.suggest(series.total))
+        s.commit()
+        p = pool_by_key[spec["pool"]]
+        amount = applications.limit_for(p, proof.threshold) // 1_000_00 * 1_000_00
+        app = applications.apply(s, chain, org, p.id, proof.id, amount)
+        if app.status == "SUBMITTED":
+            muser, morg = managers[spec["pool"]]
+            applications.decide(s, muser, morg, app.id, True, "Strong proven revenue relative to request.")
+        applications.terms_message(s, org, app.id)
+        applications.accept(s, chain, org, app.id, None)
+        s.commit()
+    drain(s, chain)
 
 
-def _snapshot(s: Session, day: int) -> None:
-    p = pool_store.load(s)
-    s.merge(NavSnapshot(day=day, senior_nav=p.senior.nav, junior_nav=p.junior.nav,
-                        senior_price_e6=lender.price_e6(p.senior), junior_price_e6=lender.price_e6(p.junior),
-                        outstanding=p.outstanding, cash=p.cash))
+def drain(s: Session, chain, rounds: int = 20) -> None:
+    for _ in range(rounds):
+        if not transfers.process(s, chain):
+            return
 
 
-def _open_loans(s: Session) -> list[LoanRow]:
-    return list(s.exec(select(LoanRow).where(col(LoanRow.status).not_in([str(x) for x in CLOSED]))
-                       .order_by(col(LoanRow.id))))
-
-
-def _save_loan(s: Session, loan: LoanRow, state) -> None:
-    loan.state_json = json.dumps(state.to_dict())
-    loan.status = str(state.status)
-    s.add(loan)
-
-
-def _route(s: Session, b: Borrower, day: int, amount: int) -> PrivatePayment:
-    loan = borrowers.active_loan(s, b)
-    swept, released = 0, amount
-    if loan:
-        state, swept, released = apply_payment(borrowers.loan_state(loan), amount)
-        _save_loan(s, loan, state)
-    pay = PrivatePayment(borrower_id=b.id, loan_id=loan.id if loan else None, day=day,
-                         amount=amount, swept=swept, released=released)
-    s.add(pay)
-    return pay
-
-
-def _write_off(s: Session, loan: LoanRow, state, day: int) -> None:
-    pool, la = poolcore.default(pool_store.load(s), state.outstanding)
-    pool_store.save(s, pool)
-    ledger.append(s, day, "LoanDefaulted", {"loan_id": loan.id, "borrower": loan.borrower_id,
-                                            "outstanding": state.outstanding})
-    ledger.append(s, day, "LossAllocated", {"loan_id": loan.id, "loss": la.loss,
-                                            "junior": la.junior, "senior": la.senior})
-
-
-def _close(s: Session, loan: LoanRow, day: int):
-    """Close a loan's current epoch: allocate what was swept and publish the outcome."""
-    before = borrowers.loan_state(loan)
-    state, r = close_epoch(before)
-    _save_loan(s, loan, state)
-    payload = {"loan_id": loan.id, "borrower": loan.borrower_id, "epoch": r.epoch,
-               "due": r.due, "paid": r.paid}
-    if r.event == "InstallmentShort":
-        payload |= {"shortfall": r.shortfall, "consecutive_short": state.consecutive_short}
-    ledger.append(s, day, r.event, payload)
-    if state.status == LoanStatus.LATE and before.status == LoanStatus.ACTIVE:
-        ledger.append(s, day, "LoanLate", {"loan_id": loan.id, "borrower": loan.borrower_id})
-    elif state.status == LoanStatus.REPAID:
-        ledger.append(s, day, "LoanRepaid", {"loan_id": loan.id, "borrower": loan.borrower_id})
-    return state, r
-
-
-def _settle_week(s: Session, day: int) -> None:
-    interest = principal = 0
-    settled: list[str] = []
-    defaults = []
-    for loan in _open_loans(s):
-        if day - loan.drawn_day < EPOCH_DAYS:
-            continue  # first installment falls due at the next boundary
-        state, r = _close(s, loan, day)
-        interest += r.interest
-        principal += r.principal
-        settled.append(loan.id)
-        if state.status == LoanStatus.DEFAULTED:
-            defaults.append((loan, state))
-
-    pool, d = poolcore.distribute(pool_store.load(s), interest, principal, EPOCH_DAYS)
-    pool_store.save(s, pool)
-    ledger.append(s, day, "InterestDistributed", {
-        "loans": settled, "interest": d.interest, "principal": d.principal, "fee": d.fee,
-        "senior": d.senior, "junior": d.junior, "senior_arrears": d.senior_arrears,
-    })
-    for loan, state in defaults:
-        _write_off(s, loan, state, day)
-    _snapshot(s, day)
-    ledger.seal_block(s, day)
-
-
-def _tick(s: Session, day: int) -> None:
-    """Non-ledger SSE notice so live views refresh private state (payments) between settlements."""
-    s.info.setdefault("published", []).append({"type": "SimTick", "day": day})
-
-
-def advance(s: Session, days: int) -> int:
+def advance(s: Session, ctx: Ctx, days: int) -> int:
     if not 1 <= days <= 365:
         raise InvalidAmount("Advance between 1 and 365 days.")
-    for _ in range(days):
-        st = clock.state(s)
-        day = st.day
-        for b in s.exec(select(Borrower).order_by(col(Borrower.id))):
-            for amount in payments_for_day(PROFILES[b.profile], b.seed, day, b.collapse_day):
-                _route(s, b, day, amount)
-        st.day = day + 1
-        s.add(st)
-        if st.day % EPOCH_DAYS == 0:
-            _settle_week(s, st.day)
-        _tick(s, st.day)
-        s.commit()
+    chain = ctx.chain(clock.world(s))
+    with ctx.write_lock:
+        for _ in range(days):
+            st = clock.state(s)
+            day = st.day
+            demo_sources = s.exec(select(RevenueSource).where(RevenueSource.kind == "DEMO",
+                                                              RevenueSource.status == "ACTIVE")
+                                  .order_by(col(RevenueSource.created))).all()
+            for src in demo_sources:
+                for i, amount in enumerate(payments_for_day(PROFILES[src.profile], src.seed, day, src.collapse_day)):
+                    collections.ingest(s, src.org_id, amount, f"demo:{src.id}:{day}:{i}", src.id, day)
+            st.day = day + 1
+            s.add(st)
+            collections.mint_inflows(s, day)
+            if st.day % settlement.EPOCH_DAYS == 0:
+                settlement.settle_week(s, st.day)
+            s.info.setdefault("published", []).append({"type": "SimTick", "day": st.day})
+            s.commit()
+        if chain.cluster == "local":
+            drain(s, chain)
     return clock.today(s)
 
 
-def payment(s: Session, borrower_id: str, amount: int) -> PrivatePayment:
-    if not isinstance(amount, int) or amount <= 0:
-        raise InvalidAmount()
-    b = s.get(Borrower, borrower_id)
-    if b is None:
-        raise NotFound(f"Borrower {borrower_id} not found.")
-    pay = _route(s, b, clock.today(s), amount)
-    _tick(s, clock.today(s))
-    s.commit()
-    return pay
-
-
-def force_default(s: Session, loan_id: str) -> None:
-    loan = borrowers.require_loan(s, loan_id)
-    state = borrowers.loan_state(loan)
-    if state.status in CLOSED:
-        raise StepOutOfOrder(f"Loan {loan_id} is already {state.status}.")
-    day = clock.today(s)
-    if state.swept:
-        # Cash already swept this week belongs to the pool: settle it before the write-off.
-        state, r = _close(s, loan, day)
-        pool, d = poolcore.distribute(pool_store.load(s), r.interest, r.principal, 0)
-        pool_store.save(s, pool)
-        ledger.append(s, day, "InterestDistributed", {
-            "loans": [loan.id], "interest": d.interest, "principal": d.principal, "fee": d.fee,
-            "senior": d.senior, "junior": d.junior, "senior_arrears": d.senior_arrears,
-        })
-        if state.status == LoanStatus.REPAID:
-            s.commit()
-            return
-    state.status = LoanStatus.DEFAULTED
-    _save_loan(s, loan, state)
-    _write_off(s, loan, state, day)
-    s.commit()
-
-
-def recover(s: Session, loan_id: str, amount: int) -> None:
-    loan = borrowers.require_loan(s, loan_id)
-    if loan.status != LoanStatus.DEFAULTED:
-        raise StepOutOfOrder("Only defaulted loans can have recoveries.")
-    pool, ra = poolcore.recover(pool_store.load(s), amount)
-    pool_store.save(s, pool)
-    ledger.append(s, clock.today(s), "RecoveryAllocated", {
-        "loan_id": loan.id, "amount": ra.amount, "senior": ra.senior, "junior": ra.junior})
-    s.commit()
+def demo_user(s: Session, role: str) -> User:
+    key = {"borrower": "northwind", "lender": "harbor", "investor": "atlas"}.get(role)
+    if key is None:
+        raise InvalidAmount("Choose borrower or lender.")
+    u = s.exec(select(User).where(User.email == f"{key}@{DEMO_DOMAIN}")).first()
+    if u is None:
+        raise DomainError("The demo world isn't seeded yet. Try again in a moment.")
+    return u

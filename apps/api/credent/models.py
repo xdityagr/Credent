@@ -347,6 +347,7 @@ class ChainTransfer(SQLModel, table=True):
     last_error: str | None = None
     ref_type: str = ""
     ref_id: str = ""
+    meta_json: str = "{}"
     org_id: str | None = Field(default=None, index=True)
     created_at: datetime = Field(default_factory=_now)
     confirmed_at: datetime | None = None
