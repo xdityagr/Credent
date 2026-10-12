@@ -1,33 +1,41 @@
-import type { Metadata } from "next";
-import { IBM_Plex_Mono, Schibsted_Grotesk } from "next/font/google";
-import { DemoDock } from "@/components/DemoDock";
-import { Nav } from "@/components/Nav";
-import { Providers } from "@/components/Providers";
+import type { Metadata, Viewport } from "next";
+import { Geist_Mono, Instrument_Serif, Outfit, Unbounded } from "next/font/google";
+import { Providers } from "@/components/providers";
+import { RefractionFilter } from "@/components/ui/button";
 import "./globals.css";
 
-const sans = Schibsted_Grotesk({ subsets: ["latin"], variable: "--font-schibsted", display: "swap" });
-const mono = IBM_Plex_Mono({
+const outfit = Outfit({ subsets: ["latin"], variable: "--font-outfit", display: "swap" });
+const instrument = Instrument_Serif({
   subsets: ["latin"],
-  weight: ["400", "500"],
-  variable: "--font-plex-mono",
+  weight: "400",
+  style: ["normal", "italic"],
+  variable: "--font-instrument",
   display: "swap",
 });
+const unbounded = Unbounded({ subsets: ["latin"], weight: ["200", "300", "400"], variable: "--font-unbounded", display: "swap" });
+const mono = Geist_Mono({ subsets: ["latin"], weight: ["400", "500"], variable: "--font-geist-mono", display: "swap" });
 
 export const metadata: Metadata = {
-  title: "Credent: private credit, public book",
+  title: { default: "Credent: private credit, public book", template: "%s · Credent" },
   description:
-    "Revenue-based credit where borrowers prove revenue with zero-knowledge proofs and the loan book, tranches and default waterfall are public.",
+    "Revenue-based credit for businesses. Prove revenue with a zero-knowledge proof, borrow from lender-run pools, and repay from a lockbox. The loan book is public on Solana.",
+};
+
+export const viewport: Viewport = {
+  themeColor: "#000000",
+  colorScheme: "dark",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${sans.variable} ${mono.variable}`}>
-      <body className="pb-28">
-        <Providers>
-          <Nav />
-          <main className="mx-auto max-w-[1240px] px-5 pt-10 md:px-8">{children}</main>
-          <DemoDock />
-        </Providers>
+    <html
+      lang="en"
+      className={`${outfit.variable} ${instrument.variable} ${unbounded.variable} ${mono.variable}`}
+      suppressHydrationWarning
+    >
+      <body>
+        <RefractionFilter />
+        <Providers>{children}</Providers>
       </body>
     </html>
   );
