@@ -33,6 +33,7 @@ def to_public(e: LedgerEvent) -> dict:
         "prev_hash": e.prev_hash,
         "hash": e.hash,
         "block": e.block,
+        "pool_id": e.pool_id,
     }
 
 
@@ -43,7 +44,7 @@ def append(session: Session, day: int, type_: str, payload: dict) -> LedgerEvent
     prev = last.hash if last else GENESIS
     payload_json = canonical_json(payload)
     ev = LedgerEvent(seq=seq, day=day, type=type_, payload_json=payload_json, prev_hash=prev,
-                     hash=event_hash(prev, seq, day, type_, payload_json))
+                     pool_id=payload.get("pool_id"), hash=event_hash(prev, seq, day, type_, payload_json))
     session.add(ev)
     session.flush()
     session.info.setdefault("published", []).append(to_public(ev))

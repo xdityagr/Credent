@@ -9,3 +9,5 @@ apps/api/data/
 __pycache__/
 .pytest_cache/
 .hypothesis/
+apps/api/keys/
+apps/api/uploads/

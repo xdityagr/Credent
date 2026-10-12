@@ -37,6 +37,7 @@ class ClockState(SQLModel, table=True):
     day: int = 90  # days 0..89 are the revenue history window
     genesis: datetime = Field(default_factory=_now)  # calendar date of day 0 is genesis - 90 days
     mode: str = "accelerated"  # accelerated | manual
+    world: str = Field(default_factory=lambda: uuid.uuid4().hex[:12])  # scopes on-chain accounts
 
 
 # ---------------------------------------------------------------- identity

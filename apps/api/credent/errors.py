@@ -103,3 +103,67 @@ class BorrowerInDefault(DomainError):
     """This borrower has a defaulted loan and cannot open or draw new credit."""
     code = "BORROWER_IN_DEFAULT"
     status = 409
+
+
+class InvalidCredentials(DomainError):
+    """Email or password is incorrect."""
+    code = "INVALID_CREDENTIALS"
+    status = 401
+
+
+class EmailNotVerified(DomainError):
+    """Confirm your email address first. We sent you a link."""
+    code = "EMAIL_NOT_VERIFIED"
+    status = 403
+
+
+class EmailTaken(DomainError):
+    """An account with this email already exists."""
+    code = "EMAIL_TAKEN"
+    status = 409
+
+
+class TokenInvalid(DomainError):
+    """This link is invalid or has expired."""
+    code = "TOKEN_INVALID"
+
+
+class WeakPassword(DomainError):
+    """Choose a stronger password."""
+    code = "WEAK_PASSWORD"
+
+
+class Forbidden(DomainError):
+    """You don't have access to this."""
+    code = "FORBIDDEN"
+    status = 403
+
+
+class OnboardingRequired(DomainError):
+    """Finish setting up your organisation first."""
+    code = "ONBOARDING_REQUIRED"
+    status = 409
+
+
+class WalletRequired(DomainError):
+    """Link a Solana wallet first."""
+    code = "WALLET_REQUIRED"
+    status = 409
+
+
+class ChainFailure(DomainError):
+    """The Solana transaction failed."""
+    code = "CHAIN_ERROR"
+    status = 502
+
+
+class RateLimited(DomainError):
+    """Too many attempts. Wait a moment and try again."""
+    code = "RATE_LIMITED"
+    status = 429
+
+
+class PoolClosed(DomainError):
+    """This pool isn't accepting that action right now."""
+    code = "POOL_NOT_OPEN"
+    status = 409
