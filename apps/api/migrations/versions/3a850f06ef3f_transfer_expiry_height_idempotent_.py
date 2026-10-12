@@ -26,7 +26,7 @@ def upgrade() -> None:
         batch_op.add_column(sa.Column('last_valid_height', sa.BigInteger(), nullable=True))
 
     with op.batch_alter_table('clockstate', schema=None) as batch_op:
-        batch_op.add_column(sa.Column('last_settled_day', sa.BigInteger(), nullable=False))
+        batch_op.add_column(sa.Column('last_settled_day', sa.BigInteger(), nullable=False, server_default='0'))
 
     # ### end Alembic commands ###
 
