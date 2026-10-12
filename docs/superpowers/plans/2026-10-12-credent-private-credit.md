@@ -23,7 +23,7 @@
   `bb prove -b <json> -w <gz> -k <vk> -o <dir>`, `bb verify -p proof -i public_inputs -k vk`.
   `public_inputs` = 64 bytes = `threshold(32B BE) ‖ commitment(32B)`.
 - Ledger hash: `sha256(prev_hash ‖ str(seq) ‖ type ‖ canonical_json(payload))`. Genesis prev_hash = 64 zeros.
-- Solana memo: `credent:v1:block:<n>:<merkle_root>`. Memo program `MemoSq4gqABAXKb96qnH8TuyU3Mn6EQMcCdA4HPm8`.
+- Solana memo: `credent:v1:block:<n>:<merkle_root>`. Memo program `MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr`.
 
 ## Review Focus
 

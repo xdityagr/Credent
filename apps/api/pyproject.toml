@@ -12,8 +12,8 @@ dependencies = [
     "base58>=2.1",
     "sse-starlette>=2.1",
     "python-multipart>=0.0.9",
-    "solana>=0.36",
     "solders>=0.23",
+    "httpx>=0.28.1",
 ]
 
 [dependency-groups]
