@@ -1,5 +1,7 @@
 "use client";
 
+import { useChainConfig } from "@/lib/queries";
+
 import { Check, Copy, ExternalLink } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/cn";
@@ -96,7 +98,7 @@ export function Address({
 export function TxLink({
   signature,
   href,
-  cluster = "devnet",
+  cluster,
   label,
   className,
 }: {
@@ -106,8 +108,17 @@ export function TxLink({
   label?: string;
   className?: string;
 }) {
+  const cfg = useChainConfig();
   if (!signature && !href) return <span className="text-ink-3">—</span>;
-  const url = href ?? explorerTx(signature!, cluster);
+  const cl = cluster ?? cfg.data?.cluster ?? "devnet";
+  if (cl === "local" && !href) {
+    return (
+      <span className={cn("font-mono text-[12.5px] text-ink-2", className)} title="Settled on Credent's in-process Solana VM (CHAIN_MODE=local)">
+        {label ?? short(signature ?? "", 6, 6)}
+      </span>
+    );
+  }
+  const url = href ?? explorerTx(signature!, cl);
   return (
     <a
       href={url}

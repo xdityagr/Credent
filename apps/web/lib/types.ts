@@ -138,8 +138,20 @@ export interface PublicPool {
   min_threshold: number;
   max_loan: number;
   loans_active: number;
+  loans_late?: number;
+  loans_repaid?: number;
+  loans_defaulted?: number;
   reserves: { ok: boolean | null; onchain: number | null; checked_at: string | null };
   vault_address: string | null;
+  vault_url?: string | null;
+  treasury?: number;
+  leverage_x100: number;
+  subordination_room: number;
+  max_leverage_x100: number;
+  fee_bps: number;
+  min_first_loss: number;
+  auto_approve: boolean;
+  created_at?: string;
 }
 
 export interface NavPoint {
