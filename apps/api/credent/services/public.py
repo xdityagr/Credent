@@ -100,7 +100,6 @@ def loan_view(s: Session, chain: ChainService, loan: LoanRow) -> dict:
         "arrears": st.arrears_interest + st.arrears_principal, "consecutive_short": st.consecutive_short,
         "proof_id": proof.id if proof else None, "threshold": proof.threshold if proof else None,
         "history": st.history,
-        "drawdown_tx": explorer_tx(xfer.signature, chain.cluster) if xfer and xfer.signature else None,
     }
 
 

@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlmodel import col, select
 
-from credent.api.deps import BorrowerDep, ChainDep, CtxDep, LenderDep, OrgDep, SessionDep, UserDep
+from credent.api.deps import BorrowerDep, ChainDep, CtxDep, LenderDep, OrgDep, SessionDep, UserDep, limiter
 from credent.chain.client import explorer_tx
 from credent.errors import Forbidden, NotFound, ReceiptInvalid
 from credent.models import Application, ChainTransfer, LoanRow, Notification, Organization, Pool, Position
@@ -150,8 +150,11 @@ def attest(source_id: str, org: BorrowerDep, s: SessionDep, ctx: CtxDep) -> dict
 
 @router.post("/borrower/proofs", tags=["borrower"])
 def create_proof(body: ProveIn, org: BorrowerDep, s: SessionDep, ctx: CtxDep) -> dict:
+    limiter.check(f"prove:{org.id}", 10, 600)
+    src = revenue.get_source(s, org, body.source_id)
+    commitment, art = revenue.compute(ctx, s, src, body.threshold)  # proving runs outside the write lock
     with ctx.write_lock:
-        proof = revenue.prove(s, ctx, org, revenue.get_source(s, org, body.source_id), body.threshold)
+        proof = revenue.prove(s, ctx, org, src, body.threshold, art=art, commitment=commitment)
         s.commit()
     return revenue.proof_view(s, proof)
 
@@ -199,16 +202,18 @@ def my_application(app_id: str, org: BorrowerDep, s: SessionDep) -> dict:
 
 
 @router.post("/borrower/applications/{app_id}/withdraw", tags=["borrower"])
-def withdraw_application(app_id: str, org: BorrowerDep, s: SessionDep) -> dict:
-    app = applications.withdraw(s, org, app_id)
-    s.commit()
+def withdraw_application(app_id: str, org: BorrowerDep, s: SessionDep, ctx: CtxDep) -> dict:
+    with ctx.write_lock:
+        app = applications.withdraw(s, org, app_id)
+        s.commit()
     return applications.view(s, app)
 
 
-@router.get("/borrower/applications/{app_id}/terms", tags=["borrower"])
-def terms(app_id: str, org: BorrowerDep, s: SessionDep) -> dict:
-    msg = applications.terms_message(s, org, app_id)
-    s.commit()
+@router.post("/borrower/applications/{app_id}/terms", tags=["borrower"])
+def terms(app_id: str, org: BorrowerDep, s: SessionDep, ctx: CtxDep) -> dict:
+    with ctx.write_lock:
+        msg = applications.terms_message(s, org, app_id)
+        s.commit()
     return {"message": msg}
 
 
@@ -318,9 +323,10 @@ def _manager_view(s, chain, p: Pool) -> dict:
 
 
 @router.post("/lender/pools", status_code=201, tags=["lender"])
-def create_pool(body: PoolIn, user: UserDep, org: LenderDep, s: SessionDep, chain: ChainDep) -> dict:
-    p = pools.create(s, chain, user, org, body.model_dump())
-    s.commit()
+def create_pool(body: PoolIn, user: UserDep, org: LenderDep, s: SessionDep, chain: ChainDep, ctx: CtxDep) -> dict:
+    with ctx.write_lock:  # vault index allocation must be serialised
+        p = pools.create(s, chain, user, org, body.model_dump())
+        s.commit()
     return _manager_view(s, chain, p)
 
 

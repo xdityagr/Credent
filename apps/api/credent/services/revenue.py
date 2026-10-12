@@ -135,9 +135,9 @@ def latest_attestation(s: Session, src: RevenueSource) -> AttestationRow | None:
                   .order_by(col(AttestationRow.created).desc())).first()
 
 
-def attest(s: Session, ctx: Ctx, org: Organization, src: RevenueSource) -> AttestationRow:
+def attest(s: Session, ctx: Ctx, org: Organization, src: RevenueSource, commitment: str | None = None) -> AttestationRow:
     row = series(s, src)
-    commitment = ctx.prover.commit(json.loads(row.daily_json), row.salt)
+    commitment = commitment or ctx.prover.commit(json.loads(row.daily_json), row.salt)
     a = notary_attest(NOTARY_SOURCE[src.kind], row.period_start, row.period_end, row.account_ref,
                       commitment, ctx.keys.get("notary"), account_salt=row.salt)
     att = AttestationRow(**a.__dict__, org_id=org.id, source_id=src.id, borrower_id=org.pseudonym, day=clock.today(s))
@@ -167,14 +167,25 @@ def check_proof(att: AttestationRow, art: ProofArtifacts, threshold: int, prover
         raise ProofMismatch("Proof commitment differs from the notarised commitment.")
 
 
-def prove(s: Session, ctx: Ctx, org: Organization, src: RevenueSource, threshold: int) -> ProofRow:
+def compute(ctx: Ctx, s: Session, src: RevenueSource, threshold: int) -> tuple[str | None, ProofArtifacts]:
+    """The slow part (Docker prover), safe to run without the write lock."""
+    if not isinstance(threshold, int) or threshold <= 0:
+        raise InvalidAmount("Threshold must be a positive amount.")
+    row = series(s, src)
+    daily = json.loads(row.daily_json)
+    commitment = None if latest_attestation(s, src) else ctx.prover.commit(daily, row.salt)
+    return commitment, ctx.prover.prove(daily, row.salt, threshold)
+
+
+def prove(s: Session, ctx: Ctx, org: Organization, src: RevenueSource, threshold: int,
+          art: ProofArtifacts | None = None, commitment: str | None = None) -> ProofRow:
     if not isinstance(threshold, int) or threshold <= 0:
         raise InvalidAmount("Threshold must be a positive amount.")
     att = latest_attestation(s, src)
     if att is None:
-        att = attest(s, ctx, org, src)
+        att = attest(s, ctx, org, src, commitment)
     row = series(s, src)
-    art = ctx.prover.prove(json.loads(row.daily_json), row.salt, threshold)
+    art = art or ctx.prover.prove(json.loads(row.daily_json), row.salt, threshold)
     check_proof(att, art, threshold, ctx.prover)
     today = clock.today(s)
     proof = ProofRow(id="prf_" + _h(art.proof_b64)[:16], org_id=org.id, borrower_id=org.pseudonym, source_id=src.id,
@@ -247,7 +258,7 @@ def poll_stripe(s: Session, ctx: Ctx, src: RevenueSource, http=None) -> int:
     if src.kind != "STRIPE" or not src.stripe_key_enc:
         return 0
     key = stripe.decrypt(_master(ctx), src.stripe_key_enc)
-    charges = stripe.charges_since(key, (src.cursor or 0) + 1, http)
+    charges = stripe.charges_since(key, src.cursor or 0, http)  # gte: ingest is idempotent per charge
     n = 0
     for c in sorted(charges, key=lambda c: c["created"]):
         amount = stripe.net_usd(c)

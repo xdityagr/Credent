@@ -73,7 +73,7 @@ def draw(s: Session, chain: ChainService, app: Application, settings=None) -> Lo
         "apr_bps": p.borrower_apr_bps, "epochs": p.term_epochs, "installment": loan.installment,
         "proof_id": app.proof_id, "transfer_id": xfer.id})
     notify.notify(s, p.manager_org_id, "loan_drawn", f"{loan.id} drawn from {p.name}",
-                  f"{org.pseudonym} drew ${app.requested / 100:,.2f}.", f"/app/pools/{p.id}")
+                  f"{org.pseudonym} drew ${app.requested / 100:,.2f}.", f"/app/my-pools/{p.id}")
     notify.notify(s, org.id, "loan_drawn", f"Funds on the way: ${app.requested / 100:,.2f}",
                   "Your drawdown is being sent to your wallet as cUSD.", f"/app/loans/{loan.id}",
                   email=settings is not None, settings=settings)

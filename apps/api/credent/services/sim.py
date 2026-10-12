@@ -146,6 +146,7 @@ def advance(s: Session, ctx: Ctx, days: int) -> int:
     chain = ctx.chain(clock.world(s))
     with ctx.write_lock:
         for _ in range(days):
+            s.expire_all()  # another thread (the clock job) may have advanced the day
             st = clock.state(s)
             day = st.day
             demo_sources = s.exec(select(RevenueSource).where(RevenueSource.kind == "DEMO",
@@ -164,6 +165,11 @@ def advance(s: Session, ctx: Ctx, days: int) -> int:
         if chain.cluster == "local":
             drain(s, chain)
     return clock.today(s)
+
+
+def sandbox(s: Session) -> bool:
+    """True while every organisation is a demo one; global time controls are only safe then."""
+    return s.exec(select(Organization).where(Organization.is_demo == False)).first() is None  # noqa: E712
 
 
 def demo_user(s: Session, role: str) -> User:

@@ -38,6 +38,7 @@ class ClockState(SQLModel, table=True):
     genesis: datetime = Field(default_factory=_now)  # calendar date of day 0 is genesis - 90 days
     mode: str = "accelerated"  # accelerated | manual
     world: str = Field(default_factory=lambda: uuid.uuid4().hex[:12])  # scopes on-chain accounts
+    last_settled_day: int = 0  # weekly settlement is idempotent per day
 
 
 # ---------------------------------------------------------------- identity
@@ -343,6 +344,7 @@ class ChainTransfer(SQLModel, table=True):
     legs_json: str = Field(sa_column=Column(Text, nullable=False))
     status: str = "PENDING"  # PENDING | SENT | CONFIRMED | FAILED
     signature: str | None = Field(default=None, unique=True)
+    last_valid_height: int | None = None  # a SENT tx with no status past this height never landed
     attempts: int = 0
     last_error: str | None = None
     ref_type: str = ""

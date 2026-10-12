@@ -51,7 +51,7 @@ export function ReviewCard({ app }: { app: ApplicationView }) {
         </StatusPill>
       </div>
       {b.description && <p className="mt-4 text-[14px] leading-relaxed text-ink-2">{b.description}</p>}
-      <div className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-4">
+      <div className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-5">
         <Stat label="Requested" value={<span className="num">{usd(app.requested)}</span>} />
         <Stat
           label="Proven 90-day revenue"
@@ -62,6 +62,12 @@ export function ReviewCard({ app }: { app: ApplicationView }) {
           }
         />
         <Stat label="Weekly installment" value={<span className="num">{usd(app.terms.installment)}</span>} />
+        <Stat
+          label="Revenue source"
+          value={
+            app.proof.source_kind === "STRIPE" ? "Stripe (test mode)" : app.proof.source_kind === "RECEIPTS" ? "Signed receipts" : app.proof.source_kind === "DEMO" ? <span className="text-warn">Demo business (simulated)</span> : "—"
+          }
+        />
         <Stat label="Pool" value={app.pool.name} />
       </div>
       <div className="mt-4 flex flex-wrap gap-x-6 gap-y-1 text-[13px] text-ink-3">

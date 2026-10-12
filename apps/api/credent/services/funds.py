@@ -98,12 +98,13 @@ def submit_deposit(s: Session, chain: ChainService, org: Organization, intent_id
     s.commit()  # signature is recorded before sending, so a lost response can still be confirmed
     try:
         chain.client.send(tx)
-    except ChainError as e:
-        intent.status, intent.error = "FAILED", str(e)[:400]
+    except ChainError as e:  # may still land: leave it SUBMITTED; confirmation checks status/expiry
+        intent.error = str(e)[:400]
         s.add(intent)
         s.commit()
-        raise ChainFailure(f"The deposit transaction failed: {e}") from e
     confirm_deposit(s, chain, intent)
+    if intent.status == "FAILED":
+        raise ChainFailure(f"The deposit transaction failed: {intent.error}")
     return intent
 
 
@@ -161,7 +162,7 @@ def confirm_deposit(s: Session, chain: ChainService, intent: DepositIntent) -> D
         "shares": minted, "share_price_e6": price_e6(t), "signature": intent.signature})
     if org.id != p.manager_org_id:
         notify.notify(s, p.manager_org_id, "deposit", f"New {intent.tranche} deposit in {p.name}",
-                      f"{org.name} deposited ${intent.amount / 100:,.2f}.", f"/app/pools/{p.id}")
+                      f"{org.name} deposited ${intent.amount / 100:,.2f}.", f"/app/my-pools/{p.id}")
     audit.log(s, None, org.id, "deposit.confirmed", intent.signature, pool=p.id, amount=intent.amount)
     s.commit()
     return intent

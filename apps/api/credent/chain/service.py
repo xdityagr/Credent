@@ -87,11 +87,14 @@ class ChainService:
         return spl.ata(self.owner(label_or_address), self.mint)
 
     # ---- sending
-    def _send(self, ixs: list, signers: list[Keypair]) -> str:
-        bh, _ = self.client.latest_blockhash()
+    def _build(self, ixs: list, signers: list[Keypair]) -> tuple[Transaction, int]:
+        bh, last_valid = self.client.latest_blockhash()
         msg = Message.new_with_blockhash(ixs, self.fee_payer.pubkey(), bh)
         uniq = {bytes(k.pubkey()): k for k in [self.fee_payer, *signers]}
-        tx = Transaction(list(uniq.values()), msg, bh)
+        return Transaction(list(uniq.values()), msg, bh), last_valid
+
+    def _send(self, ixs: list, signers: list[Keypair]) -> str:
+        tx, _ = self._build(ixs, signers)
         return self.client.send(tx)
 
     def bootstrap(self) -> str | None:
@@ -136,6 +139,11 @@ class ChainService:
     def execute(self, legs: list[Leg]) -> str:
         ixs, signers = self.transfer_instructions(legs)
         return self._send(ixs, signers)
+
+    def build(self, legs: list[Leg]) -> tuple[Transaction, int]:
+        """Signed transfer transaction (not sent) and the block height after which it can no longer land."""
+        ixs, signers = self.transfer_instructions(legs)
+        return self._build(ixs, signers)
 
     # ---- user-signed deposits
     def build_user_transfer(self, from_owner: Pubkey, dst_label: str, amount: int, memo: str,

@@ -16,7 +16,8 @@ from credent.auth.security import now
 from credent.models import ChainTransfer
 from credent.services import clock
 
-PUBLIC_KINDS = ("DRAWDOWN", "SETTLEMENT", "WITHDRAWAL", "DEPOSIT_REFUND")
+# Drawdowns are not published: their signature would link a borrower pseudonym to its wallet.
+PUBLIC_KINDS = ("SETTLEMENT", "WITHDRAWAL", "DEPOSIT_REFUND")
 MAX_ATTEMPTS = 6
 
 
@@ -47,32 +48,47 @@ def _confirmed(s: Session, t: ChainTransfer) -> None:
 
 
 def process(s: Session, chain: ChainService, limit: int = 10) -> int:
-    """Send pending transfers and confirm sent ones. Returns the number of state changes."""
+    """Send pending transfers and confirm sent ones. Returns the number of state changes.
+
+    The signature and expiry height are committed *before* sending, so a lost
+    response is resolved by looking the signature up rather than paying twice.
+    """
     changed = 0
     for t in s.exec(select(ChainTransfer).where(ChainTransfer.status == "SENT").order_by(col(ChainTransfer.id)).limit(limit)):
         st = chain.client.status(t.signature)
         if st is None:
+            if t.last_valid_height is not None and chain.client.block_height() > t.last_valid_height:
+                t.status, t.signature, t.last_error = "PENDING", None, "expired before landing; resending"
+                s.add(t)
+                changed += 1
             continue
         if st.err:
-            t.status, t.last_error = "PENDING", f"failed on-chain: {st.err}"  # retry with a fresh blockhash
-            t.signature = None
+            t.attempts += 1
+            t.last_error = f"failed on-chain: {st.err}"
+            t.status, t.signature = ("FAILED", t.signature) if t.attempts >= MAX_ATTEMPTS else ("PENDING", None)
             s.add(t)
         elif st.confirmed:
             _confirmed(s, t)
         changed += 1
     s.commit()
     for t in s.exec(select(ChainTransfer).where(ChainTransfer.status == "PENDING").order_by(col(ChainTransfer.id)).limit(limit)):
-        t.attempts += 1
         try:
-            t.signature = chain.execute(legs_from_json(t.legs_json))
-            t.status = "SENT"
-            st = chain.client.status(t.signature)
-            if st and st.confirmed:
-                _confirmed(s, t)
-        except ChainError as e:
+            tx, last_valid = chain.build(legs_from_json(t.legs_json))
+        except ChainError as e:  # RPC unreachable: try again on the next run, no attempt burned
             t.last_error = str(e)[:400]
-            if t.attempts >= MAX_ATTEMPTS:
-                t.status = "FAILED"
+            s.add(t)
+            s.commit()
+            continue
+        t.signature, t.last_valid_height, t.status = str(tx.signatures[0]), last_valid, "SENT"
+        s.add(t)
+        s.commit()
+        try:
+            chain.client.send(tx)
+        except ChainError as e:  # it may still have landed; the SENT pass decides
+            t.last_error = str(e)[:400]
+        st = chain.client.status(t.signature)
+        if st and st.confirmed and not st.err:
+            _confirmed(s, t)
         s.add(t)
         s.commit()
         changed += 1

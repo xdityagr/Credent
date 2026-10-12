@@ -56,7 +56,7 @@ def test_seed_builds_a_funded_marketplace(world):
         from credent.services import wallets
         assert spl.to_cents(chain.balance(wallets.primary(s, o).address)) == loan.principal
     types = [e.type for e in s.exec(select(LedgerEvent))]
-    for t in ("PoolCreated", "Deposit", "PoolOpened", "ProofVerified", "LoanApproved", "LoanDrawn", "TransferConfirmed"):
+    for t in ("PoolCreated", "Deposit", "PoolOpened", "ProofVerified", "LoanApproved", "LoanDrawn"):
         assert t in types
 
 

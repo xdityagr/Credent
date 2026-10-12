@@ -21,7 +21,7 @@ export function homeFor(me: Me | null | undefined, next?: string | null): string
   if (!me) return "/login";
   if (!me.user.email_verified || me.onboarding.step === "verify_email") return `/verify-email?email=${encodeURIComponent(me.user.email)}`;
   if (me.onboarding.step !== "done") return "/onboarding";
-  if (next && next.startsWith("/") && !next.startsWith("//")) return next;
+  if (next && next.startsWith("/") && !next.startsWith("//") && !next.includes("\\")) return next;
   return "/app";
 }
 

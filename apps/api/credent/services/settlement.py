@@ -48,7 +48,7 @@ def _write_off(s: Session, p: Pool, loan: LoanRow, st, day: int) -> None:
                                             "junior": la.junior, "senior": la.senior})
     notify.notify(s, p.manager_org_id, "loan_defaulted", f"{loan.id} defaulted in {p.name}",
                   f"${la.loss / 100:,.2f} written off: junior ${la.junior / 100:,.2f}, senior ${la.senior / 100:,.2f}.",
-                  f"/app/pools/{p.id}")
+                  f"/app/my-pools/{p.id}")
     notify.notify(s, loan.borrower_org_id, "loan_defaulted", f"{loan.id} has defaulted",
                   "Contact the pool manager to arrange recovery.", f"/app/loans/{loan.id}")
 
@@ -74,6 +74,11 @@ def snapshot(s: Session, p: Pool, day: int) -> None:
 
 
 def settle_week(s: Session, day: int) -> None:
+    st = clock.state(s)
+    if day <= st.last_settled_day:
+        return  # already settled (e.g. a concurrent clock tick)
+    st.last_settled_day = day
+    s.add(st)
     for p in s.exec(select(Pool).where(Pool.status != "DRAFT").order_by(col(Pool.created))).all():
         interest = principal = 0
         settled, defaults = [], []

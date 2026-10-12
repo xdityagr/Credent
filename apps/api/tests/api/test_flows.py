@@ -119,9 +119,15 @@ def test_borrower_end_to_end_with_custodial_wallet(client, db, ctx):
                                                   "threshold": src["series"]["suggested_threshold"]}).json()
     amount = proof["threshold"] * 40 // 100 // 100_00 * 100_00
     app_ = client.post("/borrower/applications", json={"pool_id": pool["id"], "proof_id": proof["id"], "amount": amount})
-    assert app_.status_code == 201 and app_.json()["status"] == "APPROVED", app_.text
+    # simulated revenue never auto-approves in a real lender's pool: the manager decides
+    assert app_.status_code == 201 and app_.json()["status"] == "SUBMITTED", app_.text
     app_id = app_.json()["id"]
-    assert "Credent loan agreement" in client.get(f"/borrower/applications/{app_id}/terms").json()["message"]
+    client.post("/auth/logout")
+    client.post("/auth/login", json={"email": "mgr@x.io", "password": PW})
+    assert client.post(f"/lender/applications/{app_id}/approve", json={"note": "ok"}).json()["status"] == "APPROVED"
+    client.post("/auth/logout")
+    client.post("/auth/login", json={"email": "cfo@fjord.io", "password": PW})
+    assert "Credent loan agreement" in client.post(f"/borrower/applications/{app_id}/terms").json()["message"]
     loan = client.post(f"/borrower/applications/{app_id}/accept", json={}).json()
     assert loan["principal"] == amount and loan["drawdown"]["status"] == "CONFIRMED"
     assert client.get("/chain/balance").json()["cusd"] == amount

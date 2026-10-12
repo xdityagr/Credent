@@ -16,7 +16,7 @@ from credent.api.deps import (
     limiter,
 )
 from credent.auth.security import SESSION_COOKIE
-from credent.errors import NotFound
+from credent.errors import Forbidden, NotFound
 from credent.services import accounts, clock, orgs, public, sim, wallets
 
 router = APIRouter()
@@ -125,6 +125,7 @@ def resend(body: EmailIn, request: Request, s: SessionDep, ctx: CtxDep) -> dict:
 @router.post("/auth/login", tags=["auth"])
 def login(body: LoginIn, request: Request, response: Response, s: SessionDep, ctx: CtxDep) -> dict:
     limiter.check(f"login:{client_ip(request)}", 20, 600)
+    limiter.check(f"login-account:{body.email.strip().lower()}", 10, 600)
     user, token = accounts.login(s, ctx.settings, body.email, body.password, client_ip(request),
                                  request.headers.get("user-agent", ""))
     s.commit()
@@ -157,6 +158,8 @@ def reset(body: ResetIn, s: SessionDep) -> dict:
 
 @router.post("/auth/demo", tags=["auth"])
 def demo(body: DemoIn, request: Request, response: Response, s: SessionDep, ctx: CtxDep) -> dict:
+    if not ctx.settings.sim_enabled:
+        raise Forbidden("The demo is turned off on this deployment.")
     user = sim.demo_user(s, body.role)
     token = accounts.start_session(s, ctx.settings, user, client_ip(request), request.headers.get("user-agent", ""))
     s.commit()
@@ -179,8 +182,8 @@ def update_me(body: ProfileIn, user: UserDep, s: SessionDep) -> dict:
 
 
 @router.post("/me/password", tags=["me"])
-def change_password(body: PasswordIn, user: UserDep, s: SessionDep) -> dict:
-    accounts.change_password(s, user, body.current, body.new)
+def change_password(body: PasswordIn, user: UserDep, auth: AuthDep, s: SessionDep) -> dict:
+    accounts.change_password(s, user, body.current, body.new, keep=auth.id_hash)
     s.commit()
     return {"ok": True}
 

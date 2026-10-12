@@ -4,7 +4,7 @@ $root = Split-Path -Parent $PSScriptRoot
 
 docker compose -f (Join-Path $root "infra/docker-compose.yml") up -d | Out-Null
 $api = Start-Process -PassThru -NoNewWindow -WorkingDirectory (Join-Path $root "apps/api") `
-    -FilePath "uv" -ArgumentList "run", "uvicorn", "credent.main:app", "--port", "8000", "--reload", "--reload-dir", "credent"
+    -FilePath "uv" -ArgumentList "run", "uvicorn", "credent.main:app", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips", "127.0.0.1", "--reload", "--reload-dir", "credent"
 try {
     Push-Location (Join-Path $root "apps/web")
     pnpm dev

@@ -61,7 +61,7 @@ export interface ApplicationView {
   created_at: string;
   decided_at: string | null;
   pool: { id: string; slug: string; name: string };
-  proof: { id: string; threshold: number; commitment: string; expires_date: string };
+  proof: { id: string; threshold: number; commitment: string; expires_date: string; source_kind?: "DEMO" | "STRIPE" | "RECEIPTS" | null };
   borrower: {
     pseudonym: string;
     name?: string;
@@ -279,7 +279,7 @@ export function useBorrowerActions() {
     prove: useAct((v: { source_id: string; threshold: number }) => post<ProofView>("/borrower/proofs", v)),
     apply: useAct((v: { pool_id: string; proof_id: string; amount: number }) => post<ApplicationView>("/borrower/applications", v)),
     withdraw: useAct((id: string) => post<ApplicationView>(`/borrower/applications/${id}/withdraw`)),
-    terms: useMutation({ mutationFn: (id: string) => get<{ message: string }>(`/borrower/applications/${id}/terms`) }),
+    terms: useMutation({ mutationFn: (id: string) => post<{ message: string }>(`/borrower/applications/${id}/terms`) }),
     accept: useAct((v: { id: string; signature: string | null }) =>
       post<PrivateLoan>(`/borrower/applications/${v.id}/accept`, { signature: v.signature })),
     withdrawOperating: useAct((amount: number | null) => post<{ amount: number }>("/borrower/operating/withdraw", { amount })),

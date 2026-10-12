@@ -78,10 +78,15 @@ def apply(s: Session, chain, org: Organization, pool_id: str, proof_id: str, amo
     s.add(app)
     s.flush()
     audit.log(s, None, org.id, "application.submit", app.id, pool=p.id, amount=amount)
-    if p.auto_approve and amount <= (p.auto_approve_max or cap):
+    from credent.models import RevenueSource
+
+    src = s.get(RevenueSource, proof.source_id)
+    manager = s.get(Organization, p.manager_org_id)
+    trusted_source = (src is not None and src.kind == "STRIPE") or manager.is_demo
+    if p.auto_approve and trusted_source and amount <= (p.auto_approve_max or cap):
         _decide(s, p, app, "APPROVED", "Approved automatically: proof meets the pool's rules.", None, auto=True)
         notify.notify(s, org.id, "application_approved", f"Approved by {p.name}",
-                      "Sign the loan terms to receive your funds.", f"/app/applications/{app.id}",
+                      "Sign the loan terms to receive your funds.", f"/app/applications?open={app.id}",
                       email=settings is not None, settings=settings)
     else:
         notify.notify(s, p.manager_org_id, "application", f"New application to {p.name}",
@@ -111,7 +116,7 @@ def decide(s: Session, user, manager: Organization, app_id: str, approve: bool, 
     title = f"{'Approved' if approve else 'Declined'} by {p.name}"
     body = "Sign the loan terms to receive your funds." if approve else (note or "The pool manager declined this request.")
     notify.notify(s, app.borrower_org_id, "application_" + ("approved" if approve else "declined"), title, body,
-                  f"/app/applications/{app.id}", email=settings is not None, settings=settings)
+                  f"/app/applications?open={app.id}", email=settings is not None, settings=settings)
     return app
 
 
@@ -170,6 +175,14 @@ def accept(s: Session, chain, org: Organization, app_id: str, signature: str | N
         msg = terms_text(s, org, app)
         if not verify_b58_sig(w.address, msg.encode(), signature):
             raise Unauthorized("The signature doesn't match your wallet.")
+    p = s.get(Pool, app.pool_id)
+    proof = s.get(ProofRow, app.proof_id)
+    if p.status not in ("OPEN", "FUNDING"):
+        raise PoolClosed("This pool has closed since your application was approved.")
+    if clock.today(s) > proof.expires_day:
+        raise StepOutOfOrder("Your proof expired. Generate a fresh one and apply again.")
+    if loans.has_default(s, org.id):
+        raise BorrowerInDefault()
     app.accept_signature = signature or "custodial-consent"
     loan = loans.draw(s, chain, app, settings)
     audit.log(s, None, org.id, "application.accept", app.id, loan=loan.id)
@@ -185,13 +198,20 @@ def view(s: Session, app: Application, for_manager: bool = False) -> dict:
            "decided_at": app.decided_at.isoformat() if app.decided_at else None,
            "pool": {"id": p.id, "slug": p.slug, "name": p.name},
            "proof": {"id": proof.id, "threshold": proof.threshold, "commitment": proof.commitment,
-                     "expires_date": clock.iso_date(s, proof.expires_day)},
+                     "expires_date": clock.iso_date(s, proof.expires_day), "source_kind": _source_kind(s, proof)},
            "borrower": {"pseudonym": org.pseudonym}}
     if for_manager:  # the reviewing manager sees who is applying, never their revenue
         from credent.services.orgs import view as org_view
 
         out["borrower"] = {**org_view(org), "track_record": track_record(s, org.id)}
     return out
+
+
+def _source_kind(s: Session, proof: ProofRow) -> str | None:
+    from credent.models import RevenueSource
+
+    src = s.get(RevenueSource, proof.source_id)
+    return src.kind if src else None
 
 
 def track_record(s: Session, org_id: str) -> dict:

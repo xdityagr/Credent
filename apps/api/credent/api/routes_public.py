@@ -6,7 +6,7 @@ from fastapi import APIRouter, Request
 from sqlmodel import select
 from sse_starlette.sse import EventSourceResponse
 
-from credent.api.deps import ChainDep, CtxDep, SessionDep
+from credent.api.deps import ChainDep, CtxDep, SessionDep, client_ip, limiter
 from credent.crypto.keys import pubkey_b58
 from credent.errors import DomainError
 from credent.events import broadcaster
@@ -85,7 +85,8 @@ def proof(proof_id: str, s: SessionDep) -> dict:
 
 
 @router.post("/proofs/{proof_id}/verify")
-def verify_proof(proof_id: str, s: SessionDep, ctx: CtxDep) -> dict:
+def verify_proof(proof_id: str, s: SessionDep, ctx: CtxDep, request: Request) -> dict:
+    limiter.check(f"verify:{client_ip(request)}", 20, 60)
     return public.verify_proof(s, proof_id, ctx.prover, ctx.keys)
 
 

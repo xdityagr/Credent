@@ -5,7 +5,7 @@
   "description": "Credent: private credit, public book",
   "scripts": {
     "dev:web": "pnpm --dir apps/web dev",
-    "dev:api": "cd apps/api && uv run uvicorn credent.main:app --port 8000 --reload --reload-dir credent",
+    "dev:api": "cd apps/api && uv run uvicorn credent.main:app --port 8000 --proxy-headers --forwarded-allow-ips 127.0.0.1 --reload --reload-dir credent",
     "build:web": "pnpm --dir apps/web build",
     "test:api": "cd apps/api && uv run pytest",
     "test:prover": "cd apps/api && uv run pytest -m prover",

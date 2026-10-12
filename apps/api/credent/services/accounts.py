@@ -19,6 +19,9 @@ from credent.models import AuthSession, Membership, Organization, User, Wallet
 from credent.services import audit
 
 
+_DUMMY_HASH = sec.hash_password("credent-timing-equaliser")
+
+
 def normalize_email(email: str) -> str:
     try:
         return validate_email(email.strip(), check_deliverability=False).normalized.lower()
@@ -72,7 +75,10 @@ def login(s: Session, settings: Settings, email: str, password: str, ip: str = "
     except InvalidAmount:
         raise InvalidCredentials()
     user = by_email(s, email)
-    if user is None or user.disabled or not sec.check_password(password, user.password_hash):
+    if user is None:
+        sec.check_password(password, _DUMMY_HASH)  # same cost whether or not the account exists
+        raise InvalidCredentials()
+    if user.disabled or not sec.check_password(password, user.password_hash):
         raise InvalidCredentials()
     if user.email_verified_at is None:
         raise EmailNotVerified()
@@ -120,13 +126,17 @@ def reset_password(s: Session, token: str, password: str) -> None:
     audit.log(s, user.id, None, "user.reset_password")
 
 
-def change_password(s: Session, user: User, current: str, new: str) -> None:
+def change_password(s: Session, user: User, current: str, new: str, keep: str | None = None) -> None:
     if not sec.check_password(current, user.password_hash):
         raise InvalidCredentials("Your current password is incorrect.")
     if problem := sec.password_problem(new):
         raise WeakPassword(problem)
     user.password_hash = sec.hash_password(new)
     s.add(user)
+    for sess in s.exec(select(AuthSession).where(AuthSession.user_id == user.id, AuthSession.revoked_at.is_(None))):
+        if sess.id_hash != keep:
+            sess.revoked_at = sec.now()
+            s.add(sess)
     audit.log(s, user.id, None, "user.change_password")
 
 
