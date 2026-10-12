@@ -1,26 +1,128 @@
 @import "tailwindcss";
 
+/*
+ * Credent: ledger paper and security envelopes.
+ * Public data is ruled ledger ink. Private data hides behind a bank-envelope
+ * security tint that only its owner can open.
+ */
+@theme {
+  --color-paper: #eef1ea;
+  --color-paper-deep: #e3e8de;
+  --color-sheet: #f8faf5;
+  --color-rule: #c9d3c6;
+  --color-rule-strong: #9fae9c;
+  --color-ink: #1c2b45;
+  --color-ink-soft: #4a5873;
+  --color-ink-faint: #7d889b;
+  --color-senior: #1c2b45;
+  --color-junior: #2e6a52;
+  --color-junior-soft: #cfe1d6;
+  --color-senior-soft: #d3dae8;
+  --color-loss: #b42318;
+  --color-loss-soft: #f3d9d5;
+  --color-warn: #a15c07;
+  --color-warn-soft: #f4e4c9;
+  --color-envelope: #3e5c9a;
+  --color-envelope-bg: #dde4f1;
+
+  --font-sans: var(--font-schibsted), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
+
+  --radius-sheet: 6px;
+}
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: light;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-feature-settings: "tnum" 1, "lnum" 1;
+  -webkit-font-smoothing: antialiased;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  min-height: 100dvh;
+}
+
+::selection {
+  background: var(--color-junior-soft);
+  color: var(--color-ink);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-envelope);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+/* Accountant's ruled sheet: faint horizontal rules every line. */
+.ledger-sheet {
+  background-color: var(--color-sheet);
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent 31px,
+    color-mix(in srgb, var(--color-rule) 55%, transparent) 31px,
+    color-mix(in srgb, var(--color-rule) 55%, transparent) 32px
+  );
+}
+
+/* Bank security-envelope tint: dense interlocking diagonal glyph pattern. */
+.envelope-tint {
+  background-color: var(--color-envelope-bg);
+  background-image:
+    repeating-linear-gradient(45deg, color-mix(in srgb, var(--color-envelope) 26%, transparent) 0 2px, transparent 2px 7px),
+    repeating-linear-gradient(-45deg, color-mix(in srgb, var(--color-envelope) 18%, transparent) 0 1px, transparent 1px 5px),
+    repeating-linear-gradient(0deg, color-mix(in srgb, var(--color-envelope) 10%, transparent) 0 1px, transparent 1px 3px);
+}
+
+/* Loss hatching for written-down capital. */
+.loss-hatch {
+  background-color: var(--color-loss-soft);
+  background-image: repeating-linear-gradient(
+    -45deg,
+    color-mix(in srgb, var(--color-loss) 55%, transparent) 0 2px,
+    transparent 2px 6px
+  );
+}
+
+@keyframes ledger-in {
+  from {
+    background-color: color-mix(in srgb, var(--color-junior-soft) 90%, transparent);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+
+.row-new {
+  animation: ledger-in 1.6s ease-out;
+}
+
+@keyframes sweep-split {
+  0% {
+    transform: translateY(-6px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.sweep-in {
+  animation: sweep-split 0.45s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
