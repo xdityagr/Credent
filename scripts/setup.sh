@@ -9,6 +9,7 @@ command -v docker >/dev/null || { echo "Docker is required for the ZK prover." >
 
 (cd "$root/apps/api" && uv sync)
 (cd "$root" && pnpm install)
+(cd "$root" && docker compose -f infra/docker-compose.yml up -d)
 (cd "$root" && docker build -f infra/prover/Dockerfile -t credent-prover .)
 [ -f "$root/.env" ] || cp "$root/.env.example" "$root/.env"
 echo "Setup complete. Run scripts/dev.sh"

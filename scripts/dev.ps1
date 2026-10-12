@@ -2,6 +2,7 @@
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 
+docker compose -f (Join-Path $root "infra/docker-compose.yml") up -d | Out-Null
 $api = Start-Process -PassThru -NoNewWindow -WorkingDirectory (Join-Path $root "apps/api") `
     -FilePath "uv" -ArgumentList "run", "uvicorn", "credent.main:app", "--port", "8000", "--reload", "--reload-dir", "credent"
 try {

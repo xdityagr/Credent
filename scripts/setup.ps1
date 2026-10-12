@@ -21,6 +21,9 @@ Push-Location (Join-Path $root "apps/api"); uv sync; Pop-Location
 Write-Host "Installing web dependencies..." -ForegroundColor Cyan
 Push-Location $root; pnpm install; Pop-Location
 
+Write-Host "Starting Postgres + Mailpit..." -ForegroundColor Cyan
+Push-Location $root; docker compose -f infra/docker-compose.yml up -d; Pop-Location
+
 Write-Host "Building ZK prover image (Noir + Barretenberg)..." -ForegroundColor Cyan
 Push-Location $root; docker build -f infra/prover/Dockerfile -t credent-prover .; Pop-Location
 
