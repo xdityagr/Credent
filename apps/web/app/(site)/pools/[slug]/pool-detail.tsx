@@ -125,7 +125,7 @@ export function PoolDetail({ slug }: { slug: string }) {
                   ["Advance rate", `${pct(p.advance_bps, 0)} of proven revenue`],
                   ["Term", `${weeks(p.term_epochs)}, weekly installments`],
                   ["Min proven revenue", `${usd(p.min_threshold)} over 90 days`],
-                  ["Max loan", usd(p.max_loan)],
+                  ["Max loan", p.max_loan ? usd(p.max_loan) : "No cap beyond the advance rate"],
                   ["Cash available", usd(p.cash)],
                   ["Lent out", usd(p.outstanding)],
                 ].map(([k, v]) => (

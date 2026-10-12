@@ -86,7 +86,7 @@ export function PoolCard({ pool, className }: { pool: PublicPool; className?: st
           </div>
           <div>
             <dt className="text-ink-3">Max loan</dt>
-            <dd className="num mt-1 text-ink">{usd(pool.max_loan, "compact")}</dd>
+            <dd className="num mt-1 text-ink">{pool.max_loan ? usd(pool.max_loan, "compact") : "No cap"}</dd>
           </div>
         </dl>
         <div className="mt-auto pt-5">

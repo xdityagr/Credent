@@ -70,7 +70,7 @@ export function HowItWorks({ heading = true }: { heading?: boolean }) {
           </h2>
         </div>
       )}
-      <div className="mt-8 grid gap-x-16 lg:mt-0 lg:grid-cols-[1fr_1.05fr]">
+      <div className="mt-8 grid grid-cols-[minmax(0,1fr)] gap-x-16 lg:mt-0 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
         <div>
           {STEPS.map((_, i) => (
             <StepText key={i} i={i} onActive={setActive} active={active === i} />

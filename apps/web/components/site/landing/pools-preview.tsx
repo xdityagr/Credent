@@ -29,7 +29,7 @@ export function PoolsPreview() {
         </ButtonLink>
       </div>
 
-      <div className="mt-12 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div className={`mt-12 grid gap-4 md:grid-cols-2 ${top.length === 2 ? "" : "lg:grid-cols-3"}`}>
         {isPending ? (
           <>
             <PoolCardSkeleton />

@@ -7,16 +7,19 @@ type P = Record<string, any>; // eslint-disable-line @typescript-eslint/no-expli
 export type Tone = "neutral" | "public" | "good" | "loss" | "warn" | "private";
 
 const DESCRIBE: Record<string, (p: P) => [string, Tone]> = {
-  PoolCreated: (p) => [`${p.name ?? "Pool"} created: senior coupon ${pct(p.senior_coupon_bps)}, max leverage ${p.max_leverage ?? 4}x`, "public"],
-  PoolOpened: (p) => [`${p.name ?? "Pool"} opened for applications`, "public"],
-  Deposit: (p) => [`${short(p.wallet ?? p.org ?? "", 4, 4) || "A lender"} deposited ${usd(p.amount)} into ${p.tranche}`, "public"],
+  PoolCreated: (p) => [
+    `${p.manager_name ?? p.manager ?? "A lender"} created ${p.name ?? "a pool"}: senior coupon ${pct(p.senior_coupon_bps)}, borrower APR ${pct(p.borrower_apr_bps)}`,
+    "public",
+  ],
+  PoolOpened: (p) => [`Pool opened for applications with ${usd(p.junior)} of junior capital`, "public"],
+  Deposit: (p) => [`${p.lender ?? (short(p.wallet ?? "", 4, 4) || "A lender")} deposited ${usd(p.amount)} into ${p.tranche}`, "public"],
   Withdrawal: (p) => [`${usd(p.amount)} withdrawn from ${p.tranche}`, "public"],
   AttestationRecorded: (p) => [`${p.borrower} notarized 90 days of revenue (${sourceName(p.source)})`, "private"],
   ProofVerified: (p) => [`${p.borrower} proved 90-day revenue of at least ${usd(p.threshold)}`, "private"],
   CreditLineOpened: (p) => [`${p.borrower} opened a ${usd(p.limit)} credit line`, "neutral"],
-  LoanApproved: (p) => [`${p.loan_id ?? "Loan"} approved for ${usd(p.principal ?? p.amount)}`, "public"],
+  LoanApproved: (p) => [`${p.borrower ?? "A borrower"} approved for ${usd(p.amount ?? p.principal)}${p.auto ? " (auto-approved)" : ""}`, "public"],
   LoanDrawn: (p) => [`${p.loan_id} drawn: ${usd(p.principal)} at ${pct(p.apr_bps)} over ${p.epochs} weeks`, "public"],
-  TransferConfirmed: (p) => [`${p.kind ? String(p.kind).toLowerCase() : "Transfer"} of ${usd(p.amount)} confirmed on Solana`, "neutral"],
+  TransferConfirmed: (p) => [`${transferKind(p.kind)}${p.amount != null ? ` of ${usd(p.amount)}` : ""} confirmed on Solana`, "neutral"],
   InstallmentPaid: (p) => [`${p.loan_id} paid week ${Number(p.epoch) + 1} installment of ${usd(p.due)}`, "good"],
   InstallmentShort: (p) => [`${p.loan_id} short ${usd(p.shortfall)} in week ${Number(p.epoch) + 1} (${p.consecutive_short} in a row)`, "warn"],
   CollectionsSettled: (p) => [`Weekly collections settled: ${usd(p.amount ?? p.installments)} to the vault`, "good"],
@@ -31,6 +34,22 @@ const DESCRIBE: Record<string, (p: P) => [string, Tone]> = {
   ],
   ReserveAttested: (p) => [`Reserves checked on Solana: ${p.ok === false ? "mismatch" : "match the book"}`, p.ok === false ? "loss" : "good"],
 };
+
+function transferKind(kind: unknown): string {
+  const k = String(kind ?? "").toUpperCase();
+  const names: Record<string, string> = {
+    DRAWDOWN: "Drawdown",
+    SETTLEMENT: "Weekly settlement transfer",
+    FEE: "Protocol fee transfer",
+    WITHDRAWAL: "Withdrawal",
+    OPERATING_PAYOUT: "Operating payout",
+    INFLOW_MINT: "Daily collections mint",
+    FAUCET: "Faucet mint",
+    GENESIS: "Vault genesis mint",
+    DEPOSIT: "Deposit",
+  };
+  return names[k] ?? "Transfer";
+}
 
 export function describe(e: Pick<PublicEvent, "type" | "payload">): [string, Tone] {
   const f = DESCRIBE[e.type];
