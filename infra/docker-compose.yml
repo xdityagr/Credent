@@ -1,0 +1,33 @@
+# Local infrastructure for Credent.
+#   docker compose -f infra/docker-compose.yml up -d
+# Postgres on :5434 (avoids clashing with a local Postgres), Mailpit SMTP :1025 / inbox UI :8025.
+name: credent
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: credent
+      POSTGRES_PASSWORD: credent
+      POSTGRES_DB: credent
+    ports:
+      - "5434:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U credent"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: "1"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "1"
+
+volumes:
+  pgdata:

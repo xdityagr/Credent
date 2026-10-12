@@ -189,3 +189,60 @@ def test_deposit_value_is_exact_at_fractional_price():
     p, _ = distribute(p, interest=1_234_57, principal=0, days=7)  # junior price now fractional
     p, minted = deposit(p, "junior", 50_000_00)
     assert share_value(p.junior, minted) == 50_000_00
+
+
+# ---- v2: per-pool terms and withdrawals ----
+from credent.core.pool import PoolTerms, withdraw  # noqa: E402
+
+
+def test_custom_leverage_cap():
+    terms = PoolTerms(max_leverage_x100=200)
+    p, _ = deposit(Pool(), "junior", 100_000_00, terms)
+    p, _ = deposit(p, "senior", 200_000_00, terms)
+    with pytest.raises(SubordinationBreach):
+        deposit(p, "senior", 1, terms)
+
+
+def test_custom_coupon_and_fee():
+    terms = PoolTerms(senior_coupon_bps=1200, fee_bps=500)
+    p, _ = deposit(Pool(), "junior", 100_000_00, terms)
+    p, _ = deposit(p, "senior", 400_000_00, terms)
+    p = draw(p, 500_000_00)
+    p, d = distribute(p, interest=10_000_00, principal=0, days=7, terms=terms)
+    assert d.fee == 500_00
+    assert d.senior == 400_000_00 * 1200 * 7 // (10_000 * 365)
+
+
+def test_withdraw_returns_value_and_burns_shares():
+    p, minted = deposit(Pool(), "junior", 100_000_00)
+    p, amount = withdraw(p, "junior", minted // 2)
+    assert amount == 50_000_00
+    assert p.junior.nav == 50_000_00 and p.cash == 50_000_00
+    p.check()
+
+
+def test_full_withdraw_takes_everything():
+    p, minted = deposit(Pool(), "junior", 100_000_00)
+    p.junior.nav += 1_23  # gains accrued
+    p.cash += 1_23
+    p, amount = withdraw(p, "junior", minted)
+    assert amount == 100_001_23 and p.junior.shares == 0 and p.cash == 0
+
+
+def test_withdraw_needs_liquidity():
+    p, minted = deposit(Pool(), "junior", 100_000_00)
+    p = draw(p, 90_000_00)
+    with pytest.raises(InsufficientLiquidity):
+        withdraw(p, "junior", minted)
+
+
+def test_junior_withdraw_cannot_breach_subordination():
+    p = funded(junior=100_000_00, senior=400_000_00)
+    with pytest.raises(SubordinationBreach):
+        withdraw(p, "junior", 1_000 * SHARE_SCALE)
+
+
+def test_withdraw_more_shares_than_exist():
+    p, minted = deposit(Pool(), "junior", 100_000_00)
+    with pytest.raises(InvalidAmount):
+        withdraw(p, "junior", minted + 1)

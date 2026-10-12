@@ -20,6 +20,20 @@ SHARE_SCALE = 10**6  # shares per cent at the initial price, so rounding stays s
 TRANCHES = ("senior", "junior")
 
 
+@dataclass(frozen=True)
+class PoolTerms:
+    """Economics a pool manager chooses. Defaults are the v1 protocol terms."""
+    senior_coupon_bps: int = SENIOR_COUPON_BPS
+    max_leverage_x100: int = MAX_LEVERAGE * 100  # senior may be at most this/100 x junior
+    fee_bps: int = FEE_BPS
+
+    def senior_cap(self, junior_nav: int) -> int:
+        return self.max_leverage_x100 * junior_nav // 100
+
+
+DEFAULT_TERMS = PoolTerms()
+
+
 @dataclass
 class Tranche:
     name: str
@@ -96,16 +110,16 @@ def share_value(t: Tranche, shares: int) -> int:
     return (shares * t.nav + t.shares // 2) // t.shares if t.shares else 0
 
 
-def deposit(p: Pool, tranche_name: str, amount: int) -> tuple[Pool, int]:
+def deposit(p: Pool, tranche_name: str, amount: int, terms: PoolTerms = DEFAULT_TERMS) -> tuple[Pool, int]:
     _positive(amount)
     p = copy.deepcopy(p)
     t = p.tranche(tranche_name)
     if t.shares and t.nav == 0:
         raise TrancheImpaired()
-    if tranche_name == "senior" and p.senior.nav + amount > MAX_LEVERAGE * p.junior.nav:
-        room = max(0, MAX_LEVERAGE * p.junior.nav - p.senior.nav)
+    if tranche_name == "senior" and p.senior.nav + amount > terms.senior_cap(p.junior.nav):
+        room = max(0, terms.senior_cap(p.junior.nav) - p.senior.nav)
         raise SubordinationBreach(
-            f"Senior capital may not exceed {MAX_LEVERAGE}x junior. "
+            f"Senior capital may not exceed {terms.max_leverage_x100 / 100:g}x junior. "
             f"Room left: {room} cents."
         )
     minted = amount * SHARE_SCALE if t.shares == 0 else amount * t.shares // t.nav
@@ -127,7 +141,8 @@ def draw(p: Pool, amount: int) -> Pool:
     return p
 
 
-def distribute(p: Pool, interest: int, principal: int, days: int) -> tuple[Pool, Distribution]:
+def distribute(p: Pool, interest: int, principal: int, days: int,
+               terms: PoolTerms = DEFAULT_TERMS) -> tuple[Pool, Distribution]:
     """Apply one epoch of collections for a loan through the interest waterfall."""
     if interest < 0 or principal < 0 or principal > p.outstanding:
         raise ValueError("invalid collection amounts")
@@ -136,14 +151,14 @@ def distribute(p: Pool, interest: int, principal: int, days: int) -> tuple[Pool,
     # Senior accrues its coupon only on its pro-rata share of deployed capital.
     accrued = 0
     if p.total_nav > 0:
-        accrued = (p.senior.nav * p.outstanding * SENIOR_COUPON_BPS * days) // (
+        accrued = (p.senior.nav * p.outstanding * terms.senior_coupon_bps * days) // (
             p.total_nav * 10_000 * 365
         )
 
     p.cash += interest + principal
     p.outstanding -= principal
 
-    fee = interest * FEE_BPS // 10_000
+    fee = interest * terms.fee_bps // 10_000
     p.cash -= fee
     p.treasury += fee
     remaining = interest - fee
@@ -194,3 +209,22 @@ def recover(p: Pool, amount: int) -> tuple[Pool, RecoveryAllocation]:
     p.junior.writedown -= min(rest, p.junior.writedown)
     p.junior.nav += rest
     return p, RecoveryAllocation(amount=amount, senior=s, junior=rest)
+
+
+def withdraw(p: Pool, tranche_name: str, shares: int, terms: PoolTerms = DEFAULT_TERMS) -> tuple[Pool, int]:
+    """Burn `shares` of a tranche for their current value, paid from idle cash."""
+    if not isinstance(shares, int) or shares <= 0:
+        raise InvalidAmount("Shares must be a positive integer.")
+    p = copy.deepcopy(p)
+    t = p.tranche(tranche_name)
+    if shares > t.shares:
+        raise InvalidAmount("Cannot withdraw more shares than the tranche has.")
+    amount = t.nav if shares == t.shares else shares * t.nav // t.shares  # round down: pool keeps dust
+    if amount > p.cash:
+        raise InsufficientLiquidity(f"Only {p.cash} cents of the pool is idle; {amount} requested.")
+    if tranche_name == "junior" and p.senior.nav > terms.senior_cap(t.nav - amount):
+        raise SubordinationBreach("This withdrawal would leave senior over-levered against junior.")
+    t.shares -= shares
+    t.nav -= amount
+    p.cash -= amount
+    return p, amount
