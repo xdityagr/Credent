@@ -255,7 +255,7 @@ Principal collections go back to pool cash. Tranche principal claims are unchang
 - `POST /borrower/sources/receipts` (file upload) does the same from receipts.
 - `GET /borrower/sample-receipts?tampered=bool`
 - `POST /borrower/attest` returns an attestation.
-- `POST /borrower/prove {threshold}` returns a proof id. It is a long call: the server streams progress over SSE.
+- `POST /borrower/prove {threshold}` returns a proof id plus per-stage timings (execute/prove/verify). The spike measured about 1 s in total, so no progress stream is needed.
 - `POST /borrower/credit-line` verifies, then returns the line.
 - `POST /borrower/draw {amount}` returns the loan.
 - `GET /borrower/me` is the private dashboard (revenue, lockbox, payments, sweeps).
