@@ -2,3 +2,10 @@
 node_modules/
 # Noir build artifacts
 circuits/**/target/
+.superpowers/
+.env
+apps/api/.venv/
+apps/api/data/
+__pycache__/
+.pytest_cache/
+.hypothesis/

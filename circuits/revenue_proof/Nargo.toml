@@ -1,0 +1,6 @@
+[package]
+name = "revenue_proof"
+type = "bin"
+authors = ["Credent"]
+
+[dependencies]
