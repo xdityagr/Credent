@@ -2,7 +2,7 @@
 
 import { AlertCircle, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { errorMessage, isUnavailable } from "@/lib/api";
+import { ApiError, errorMessage, isUnavailable } from "@/lib/api";
 import { Button } from "./button";
 
 export function Skeleton({ className, style }: { className?: string; style?: React.CSSProperties }) {
@@ -83,6 +83,7 @@ export function ErrorState({
   compact?: boolean;
 }) {
   const offline = isUnavailable(error);
+  const missing = error instanceof ApiError && error.status === 404;
   return (
     <div
       role="alert"
@@ -92,11 +93,15 @@ export function ErrorState({
         className,
       )}
     >
-      <AlertCircle className={cn("mt-0.5 size-4 shrink-0", offline ? "text-warn" : "text-loss-text")} aria-hidden />
+      <AlertCircle className={cn("mt-0.5 size-4 shrink-0", offline || missing ? "text-warn" : "text-loss-text")} aria-hidden />
       <div className="min-w-0 flex-1">
-        <p className="text-ink">{offline ? "Live data is unavailable" : "Couldn't load this"}</p>
+        <p className="text-ink">{offline || missing ? "Live data is unavailable" : "Couldn't load this"}</p>
         <p className="mt-0.5 text-ink-2">
-          {offline ? "The Credent API isn't reachable right now. This view refreshes on its own when it's back." : errorMessage(error)}
+          {offline
+            ? "The Credent API isn't reachable right now. This view refreshes on its own when it's back."
+            : missing
+              ? "The API doesn't serve this view yet. It will fill in once that endpoint is live."
+              : errorMessage(error)}
         </p>
       </div>
       {onRetry && (

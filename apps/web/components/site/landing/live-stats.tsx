@@ -12,7 +12,7 @@ const intFmt = (n: number) => Math.round(n).toLocaleString("en-US");
 export function LiveStats() {
   const { data, isPending, error } = useStats();
   const { connected } = useLive();
-  const v = (fn: (d: NonNullable<typeof data>) => React.ReactNode) => (data ? fn(data) : isPending ? <NumberSkeleton /> : "—");
+  const v = (fn: (d: NonNullable<typeof data>) => React.ReactNode) => (data ? fn(data) : isPending ? <NumberSkeleton /> : <span className="text-ink-3">—</span>);
 
   return (
     <section className="relative -mt-10" aria-label="Live figures">
