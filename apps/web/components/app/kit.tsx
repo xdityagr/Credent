@@ -36,7 +36,7 @@ export function FaucetButton({ size = "md", variant = "glass" }: { size?: "sm" |
     onSuccess: (r) => {
       qc.invalidateQueries({ queryKey: qk.balance });
       toast.success("Test cUSD is on its way", {
-        description: "Minted on Solana devnet.",
+        description: "Minted to your wallet.",
         action: { label: "View tx", onClick: () => window.open(r.explorer_url, "_blank", "noopener") },
       });
     },

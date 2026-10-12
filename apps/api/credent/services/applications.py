@@ -14,6 +14,7 @@ from credent.errors import (
     BorrowerInDefault,
     CreditExceeded,
     Forbidden,
+    InsufficientLiquidity,
     InvalidAmount,
     NotFound,
     PoolClosed,
@@ -68,6 +69,9 @@ def apply(s: Session, chain, org: Organization, pool_id: str, proof_id: str, amo
     cap = limit_for(p, proof.threshold)
     if amount > cap:
         raise CreditExceeded(f"Your proof supports up to ${cap / 100:,.0f} in this pool.")
+    available = pools.load(p).cash
+    if amount > available:
+        raise InsufficientLiquidity(f"This pool has ${available / 100:,.0f} available to lend right now.")
     wallets.require_primary(s, org)
     app = Application(pool_id=p.id, borrower_org_id=org.id, proof_id=proof.id, requested=amount,
                       terms_json=json.dumps(quote(p, amount)))

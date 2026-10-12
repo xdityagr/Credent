@@ -46,7 +46,7 @@ function ApplyDialog({ pool, proofs, onClose }: { pool: PublicPool; proofs: Proo
   const eligible = proofs.filter((p) => !p.expired && p.threshold >= pool.min_threshold);
   const [proofId, setProofId] = useState(eligible[0]?.id ?? "");
   const proof = eligible.find((p) => p.id === proofId);
-  const max = proof ? Math.floor(limitFor(pool, proof.threshold) / 1_000_00) * 1_000_00 : 0;
+  const max = proof ? Math.floor(Math.min(limitFor(pool, proof.threshold), pool.cash) / 1_000_00) * 1_000_00 : 0;
   const [amount, setAmount] = useState(max ? String(max / 100) : "");
   const [error, setError] = useState<string | null>(null);
   const value = cents(amount);
@@ -87,7 +87,7 @@ function ApplyDialog({ pool, proofs, onClose }: { pool: PublicPool; proofs: Proo
                 ))}
               </Select>
             </Field>
-            <Field label="Amount" hint={`Up to ${usd(max)}: ${pct(pool.advance_bps, 0)} of your proven revenue${pool.max_loan ? `, capped at ${usd(pool.max_loan)}` : ""}.`}>
+            <Field label="Amount" hint={`Up to ${usd(max)}: ${pct(pool.advance_bps, 0)} of your proven revenue${pool.max_loan ? `, capped at ${usd(pool.max_loan)}` : ""}, within the ${usd(pool.cash)} the pool has available.`}>
               <MoneyInput value={amount} onChange={setAmount} max={max} />
             </Field>
             {value ? (
@@ -113,7 +113,7 @@ function ApplyDialog({ pool, proofs, onClose }: { pool: PublicPool; proofs: Proo
 
 function PoolRow({ pool, best, onApply }: { pool: PublicPool; best: ProofView | undefined; onApply: () => void }) {
   const eligible = best ? best.threshold >= pool.min_threshold : false;
-  const max = best && eligible ? limitFor(pool, best.threshold) : 0;
+  const max = best && eligible ? Math.min(limitFor(pool, best.threshold), pool.cash) : 0;
   return (
     <Panel className="p-5 md:p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">

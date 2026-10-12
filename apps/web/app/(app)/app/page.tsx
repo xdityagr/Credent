@@ -11,7 +11,7 @@ import { usd } from "@/lib/format";
 import { useBorrowerOverview, useLenderOverview } from "@/lib/portal";
 import { Address, ButtonLink, EmptyState, Panel, PanelHeader, Skeleton, StatusPill, toast } from "@/components/ui";
 import { errorMessage, post } from "@/lib/api";
-import { qk } from "@/lib/queries";
+import { qk, useClusterName } from "@/lib/queries";
 import { useSession } from "@/lib/session";
 import type { FaucetResult } from "@/lib/types";
 
@@ -47,6 +47,7 @@ function Greeting() {
 function BorrowerOverview() {
   const me = useSession();
   const faucet = useFaucet();
+  const cluster = useClusterName();
   const ov = useBorrowerOverview();
   const c = ov.data?.checklist;
   const primary = me.wallets.find((w) => w.is_primary) ?? me.wallets[0];
@@ -57,12 +58,12 @@ function BorrowerOverview() {
         <div className="space-y-6">
           <WalletHero
             label="Wallet balance"
-            footnote={primary ? <>Held in <Address value={primary.address} /> on Solana devnet</> : undefined}
+            footnote={primary ? <>Held in <Address value={primary.address} /> on {cluster}</> : undefined}
             actions={[
               { href: "/app/revenue", icon: <LineChart />, label: "Connect revenue", sub: "Stripe, receipts or demo" },
               { href: "/app/proofs", icon: <FileCheck2 />, label: "Prove revenue", sub: "Zero-knowledge" },
               { href: "/app/pools", icon: <Store />, label: "Browse pools", sub: "Compare terms" },
-              { onClick: () => faucet.mutate(), icon: <Droplets />, label: faucet.isPending ? "Minting…" : "Test cUSD", sub: "Devnet faucet" },
+              { onClick: () => faucet.mutate(), icon: <Droplets />, label: faucet.isPending ? "Minting…" : "Test cUSD", sub: "Faucet" },
             ]}
           />
           <Panel>
@@ -135,6 +136,7 @@ function BorrowerOverview() {
 function LenderOverview() {
   const me = useSession();
   const faucet = useFaucet();
+  const cluster = useClusterName();
   const ov = useLenderOverview();
   const mine = ov.data?.pools ?? [];
   const primary = me.wallets.find((w) => w.is_primary) ?? me.wallets[0];
@@ -145,12 +147,12 @@ function LenderOverview() {
         <div className="space-y-6">
           <WalletHero
             label="Wallet balance, ready to deploy"
-            footnote={primary ? <>Held in <Address value={primary.address} /> on Solana devnet</> : undefined}
+            footnote={primary ? <>Held in <Address value={primary.address} /> on {cluster}</> : undefined}
             actions={[
               { href: "/app/my-pools", icon: <Layers />, label: "Create a pool", sub: "Set your terms" },
               { href: "/app/funds", icon: <PiggyBank />, label: "Deposit", sub: "Senior or junior" },
               { href: "/app/review", icon: <ClipboardCheck />, label: "Review queue", sub: "Approve or decline" },
-              { onClick: () => faucet.mutate(), icon: <Droplets />, label: faucet.isPending ? "Minting…" : "Test cUSD", sub: "Devnet faucet" },
+              { onClick: () => faucet.mutate(), icon: <Droplets />, label: faucet.isPending ? "Minting…" : "Test cUSD", sub: "Faucet" },
             ]}
           />
           <Panel>

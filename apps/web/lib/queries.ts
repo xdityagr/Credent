@@ -180,3 +180,9 @@ export function useProof(id: string) {
 export function useOrgProfile(slug: string) {
   return useQuery({ queryKey: qk.org(slug), queryFn: ({ signal }) => get<PublicOrgProfile>(`/orgs/${slug}`, signal) });
 }
+
+/** Human name of the chain the API runs on ("Solana devnet" or Credent's local Solana VM). */
+export function useClusterName(): string {
+  const c = useChainConfig().data?.cluster;
+  return c === "local" ? "Credent's local Solana VM" : `Solana ${c ?? "devnet"}`;
+}
