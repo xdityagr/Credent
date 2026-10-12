@@ -11,6 +11,7 @@ import secrets
 from sqlmodel import Session, col, select
 
 from credent import ledger
+from credent.auth.security import now
 from credent.errors import InvalidAmount, NotFound, ProofInvalid, ProofMismatch, StepOutOfOrder
 from credent.models import AttestationRow, Organization, PrivateSeries, ProofRow, RevenueSource
 from credent.notary import Attestation, attest as notary_attest, verify_attestation
@@ -211,3 +212,49 @@ def source_view(s: Session, src: RevenueSource) -> dict:
             "last_polled_at": src.last_polled_at.isoformat() if src.last_polled_at else None,
             "series": series_view(row) if row else None,
             "attestation": {"id": att.id, "commitment": att.commitment, "date": clock.iso_date(s, att.day)} if att else None}
+
+
+# ---------------------------------------------------------------- Stripe (test mode)
+
+def _master(ctx: Ctx) -> bytes:
+    return bytes(ctx.keys.get("custody-master"))
+
+
+def connect_stripe(s: Session, ctx: Ctx, org: Organization, key: str, http=None) -> RevenueSource:
+    from datetime import timedelta
+
+    from credent.sources import stripe
+
+    key = stripe.check_key(key)
+    start, _ = period(s)
+    day_of = stripe.ts_to_day(clock.state(s).genesis, clock.LAUNCH_DAY)
+    since = int((clock.date_of(s, start) - timedelta(days=1)).timestamp())
+    charges = stripe.charges_since(key, since, http)
+    daily = stripe.bucket(charges, day_of, start, HISTORY_DAYS)
+    cursor = max((int(c["created"]) for c in charges), default=since)
+    src = connect_series(s, org, "STRIPE", "Stripe (test mode)", stripe.account_ref(key), daily,
+                         stripe_key_enc=stripe.encrypt(_master(ctx), key), stripe_account_hash=stripe.account_ref(key),
+                         cursor=cursor)
+    audit.log(s, None, org.id, "revenue.connect", "STRIPE", charges=len(charges))
+    return src
+
+
+def poll_stripe(s: Session, ctx: Ctx, src: RevenueSource, http=None) -> int:
+    """Ingest charges created since the last poll into the lockbox. Returns how many were new."""
+    from credent.services import collections
+    from credent.sources import stripe
+
+    if src.kind != "STRIPE" or not src.stripe_key_enc:
+        return 0
+    key = stripe.decrypt(_master(ctx), src.stripe_key_enc)
+    charges = stripe.charges_since(key, (src.cursor or 0) + 1, http)
+    n = 0
+    for c in sorted(charges, key=lambda c: c["created"]):
+        amount = stripe.net_usd(c)
+        if amount > 0:
+            collections.ingest(s, src.org_id, amount, f"stripe:{c['id']}", src.id)
+            n += 1
+        src.cursor = max(src.cursor or 0, int(c["created"]))
+    src.last_polled_at = now()
+    s.add(src)
+    return n

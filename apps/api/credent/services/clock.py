@@ -27,10 +27,10 @@ def world(s: Session) -> str:
 
 
 def date_of(s: Session, day: int) -> datetime:
-    genesis = state(s).genesis
-    if genesis.tzinfo is None:
-        genesis = genesis.replace(tzinfo=timezone.utc)
-    return genesis + timedelta(days=day - LAUNCH_DAY)
+    """Midnight UTC that starts protocol `day` (days run midnight to midnight UTC)."""
+    g = state(s).genesis
+    g0 = datetime(g.year, g.month, g.day, tzinfo=timezone.utc)
+    return g0 + timedelta(days=day - LAUNCH_DAY)
 
 
 def iso_date(s: Session, day: int) -> str:
