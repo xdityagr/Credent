@@ -385,3 +385,16 @@ class Block(SQLModel, table=True):
     anchor_status: str = "PENDING"  # PENDING | ANCHORED | UNANCHORED | DISABLED
     anchor_sig: str | None = None
     anchor_error: str | None = None
+
+
+# Money in cents and the creation counter exceed 32-bit INTEGER: store every integer column as BIGINT.
+def _widen_integers() -> None:
+    from sqlalchemy import BigInteger, Integer
+
+    for table in SQLModel.metadata.tables.values():
+        for column in table.columns:
+            if type(column.type) is Integer and not column.primary_key:
+                column.type = BigInteger()
+
+
+_widen_integers()

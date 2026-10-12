@@ -15,7 +15,7 @@ from credent.chain.client import ChainError
 from credent.chain.rehydrate import rehydrate
 from credent.config import Settings
 from credent.crypto.keys import KeyStore
-from credent.db import init_db, make_engine
+from credent.db import init_db, make_engine, migrate
 from credent.errors import DomainError
 from credent.events import broadcaster
 from credent.models import Pool
@@ -66,8 +66,12 @@ def _seed(app: FastAPI) -> None:
 def create_app(settings: Settings | None = None, prover: Prover | None = None, ctx: Ctx | None = None,
                background: bool | None = None) -> FastAPI:
     settings = settings or (ctx.settings if ctx else Settings())
-    engine = make_engine(settings.db_url())
-    init_db(engine)
+    url = settings.db_url()
+    engine = make_engine(url)
+    if url.startswith("sqlite"):
+        init_db(engine)
+    else:
+        migrate(url)
     ctx = ctx or Ctx(settings=settings, keys=KeyStore(settings.keys_dir), prover=prover or get_prover(settings))
     background = settings.background_jobs if background is None else background
 

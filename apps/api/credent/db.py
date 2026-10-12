@@ -33,3 +33,17 @@ def reset_db(engine) -> None:
 
 
 __all__ = ["Session", "make_engine", "init_db", "reset_db"]
+
+
+def migrate(url: str) -> None:
+    """Apply Alembic migrations (used for Postgres; SQLite test databases use create_all)."""
+    from alembic import command
+    from alembic.config import Config
+
+    from credent.config import API_ROOT
+
+    cfg = Config(str(API_ROOT / "alembic.ini"))
+    cfg.set_main_option("script_location", str(API_ROOT / "migrations"))
+    cfg.set_main_option("sqlalchemy.url", url)
+    cfg.attributes["configure_logger"] = False
+    command.upgrade(cfg, "head")
