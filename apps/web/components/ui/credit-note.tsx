@@ -99,7 +99,7 @@ export function CreditNote3D({
 
 function Chip() {
   return (
-    <div className="relative h-[18%] w-[13%] min-w-7 overflow-hidden rounded-[6px] bg-[linear-gradient(135deg,#d9d9d9,#7d7d7d_45%,#cfcfcf_60%,#8a8a8a)] opacity-85 shadow-inner">
+    <div className="relative aspect-[1.3] w-[13%] min-w-7 overflow-hidden rounded-[6px] bg-[linear-gradient(135deg,#d9d9d9,#7d7d7d_45%,#cfcfcf_60%,#8a8a8a)] opacity-85 shadow-inner">
       <div className="absolute inset-x-0 top-1/3 h-px bg-black/30" />
       <div className="absolute inset-x-0 top-2/3 h-px bg-black/30" />
       <div className="absolute inset-y-0 left-1/2 w-px bg-black/30" />
