@@ -16,6 +16,7 @@ from credent.errors import InsufficientLiquidity, InvalidAmount, SubordinationBr
 SENIOR_COUPON_BPS = 900
 MAX_LEVERAGE = 4
 FEE_BPS = 1000
+SHARE_SCALE = 10**6  # shares per cent at the initial price, so rounding stays sub-cent
 TRANCHES = ("senior", "junior")
 
 
@@ -92,7 +93,7 @@ def _positive(amount: int) -> None:
 
 
 def share_value(t: Tranche, shares: int) -> int:
-    return shares * t.nav // t.shares if t.shares else 0
+    return (shares * t.nav + t.shares // 2) // t.shares if t.shares else 0
 
 
 def deposit(p: Pool, tranche_name: str, amount: int) -> tuple[Pool, int]:
@@ -107,7 +108,7 @@ def deposit(p: Pool, tranche_name: str, amount: int) -> tuple[Pool, int]:
             f"Senior capital may not exceed {MAX_LEVERAGE}x junior. "
             f"Room left: {room} cents."
         )
-    minted = amount if t.shares == 0 else amount * t.shares // t.nav
+    minted = amount * SHARE_SCALE if t.shares == 0 else amount * t.shares // t.nav
     t.shares += minted
     t.nav += amount
     p.cash += amount

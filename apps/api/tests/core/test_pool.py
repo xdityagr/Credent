@@ -1,6 +1,7 @@
 import pytest
 
 from credent.core.pool import (
+    SHARE_SCALE,
     Pool,
     default,
     deposit,
@@ -22,7 +23,7 @@ def funded(junior=100_000_00, senior=400_000_00) -> Pool:
 
 def test_first_deposit_mints_one_to_one():
     p, shares = deposit(Pool(), "junior", 5_000_00)
-    assert shares == 5_000_00
+    assert shares == 5_000_00 * SHARE_SCALE
     assert p.junior.nav == p.cash == 5_000_00
     p.check()
 
@@ -32,7 +33,7 @@ def test_later_deposit_mints_at_current_price():
     p.junior.nav *= 2  # price doubled
     p.cash *= 2
     p, shares = deposit(p, "junior", 10_000_00)
-    assert shares == 5_000_00
+    assert shares == 5_000_00 * SHARE_SCALE
 
 
 def test_subordination_boundary():
@@ -163,7 +164,7 @@ def test_share_value():
     p = funded(senior=0)
     p.junior.nav = 150_000_00
     p.cash = 150_000_00
-    assert share_value(p.junior, 50_000_00) == 75_000_00
+    assert share_value(p.junior, 50_000_00 * SHARE_SCALE) == 75_000_00
     assert share_value(Pool().junior, 10) == 0
 
 
@@ -181,3 +182,10 @@ def test_operations_do_not_mutate_input():
 def test_roundtrip_dict():
     p = draw(funded(), 1_000_00)
     assert Pool.from_dict(p.to_dict()) == p
+
+
+def test_deposit_value_is_exact_at_fractional_price():
+    p = draw(funded(junior=400_000_00, senior=0), 100_000_00)
+    p, _ = distribute(p, interest=1_234_57, principal=0, days=7)  # junior price now fractional
+    p, minted = deposit(p, "junior", 50_000_00)
+    assert share_value(p.junior, minted) == 50_000_00

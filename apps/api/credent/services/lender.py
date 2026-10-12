@@ -25,7 +25,8 @@ def faucet(s: Session, wallet: str, amount: int = FAUCET_AMOUNT) -> int:
 
 
 def price_e6(t: poolcore.Tranche) -> int:
-    return t.nav * 1_000_000 // t.shares if t.shares else 1_000_000
+    """Share price relative to the initial price, scaled by 1e6 (1_000_000 == 1.000000x)."""
+    return t.nav * poolcore.SHARE_SCALE * 1_000_000 // t.shares if t.shares else 1_000_000
 
 
 def deposit(s: Session, wallet: str, tranche: str, amount: int) -> Position:
