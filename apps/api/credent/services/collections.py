@@ -44,7 +44,7 @@ def mint_inflows(s: Session, day: int) -> ChainTransfer | None:
     ref = f"inflows:{day}"
     if s.exec(select(ChainTransfer).where(ChainTransfer.kind == "INFLOW_MINT", ChainTransfer.ref_id == ref)).first():
         return None
-    total = s.exec(select(func.coalesce(func.sum(PrivatePayment.amount), 0)).where(PrivatePayment.day == day)).one()
+    total = int(s.exec(select(func.coalesce(func.sum(PrivatePayment.amount), 0)).where(PrivatePayment.day == day)).one())
     if not total:
         return None
     return transfers.enqueue(s, "INFLOW_MINT", [Leg("mint", "collections", spl.to_base(total))],
@@ -55,8 +55,8 @@ def operating(s: Session, org: Organization) -> dict:
     bal = s.get(OperatingBalance, org.id)
     total = bal.amount if bal else 0
     today = clock.today(s)
-    pending = s.exec(select(func.coalesce(func.sum(PrivatePayment.released), 0))
-                     .where(PrivatePayment.org_id == org.id, PrivatePayment.day >= today)).one()
+    pending = int(s.exec(select(func.coalesce(func.sum(PrivatePayment.released), 0))
+                         .where(PrivatePayment.org_id == org.id, PrivatePayment.day >= today)).one())
     return {"balance": total, "available": max(0, total - pending), "settling": min(total, pending)}
 
 

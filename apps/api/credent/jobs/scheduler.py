@@ -46,7 +46,7 @@ class Scheduler:
                     continue
                 self._last[name] = now
                 try:
-                    with Session(self.engine, expire_on_commit=False) as s:
+                    with self.ctx.write_lock, Session(self.engine, expire_on_commit=False) as s:
                         fn(s)
                 except Exception:  # keep the loop alive; surface in logs
                     log.exception("job %s failed", name)

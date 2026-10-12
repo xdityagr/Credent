@@ -28,8 +28,27 @@ def init_db(engine) -> None:
 
 
 def reset_db(engine) -> None:
-    SQLModel.metadata.drop_all(engine)
-    SQLModel.metadata.create_all(engine)
+    """Empty every table. Postgres: one TRUNCATE with a lock timeout, retried if a reader holds a lock."""
+    if engine.dialect.name != "postgresql":
+        SQLModel.metadata.drop_all(engine)
+        SQLModel.metadata.create_all(engine)
+        return
+    import time
+
+    from sqlalchemy import text
+    from sqlalchemy.exc import OperationalError
+
+    names = ", ".join(f'"{t.name}"' for t in SQLModel.metadata.sorted_tables)
+    for attempt in range(10):
+        try:
+            with engine.begin() as conn:
+                conn.execute(text("SET LOCAL lock_timeout = '2s'"))
+                conn.execute(text(f"TRUNCATE {names} RESTART IDENTITY CASCADE"))
+            return
+        except OperationalError:
+            if attempt == 9:
+                raise
+            time.sleep(0.3 * (attempt + 1))
 
 
 __all__ = ["Session", "make_engine", "init_db", "reset_db"]
