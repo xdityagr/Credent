@@ -31,11 +31,11 @@ def _close(s: Session, loan: LoanRow, day: int):
         ledger.append(s, day, "LoanLate", {"pool_id": loan.pool_id, "loan_id": loan.id, "borrower": loan.borrower_id})
         notify.notify(s, loan.borrower_org_id, "loan_late", f"{loan.id} is behind",
                       f"This week's installment was short by ${r.shortfall / 100:,.2f}. Three short weeks is a default.",
-                      f"/app/loans/{loan.id}")
+                      f"/app/loans/{loan.id}", email=True)
     elif st.status == LoanStatus.REPAID:
         ledger.append(s, day, "LoanRepaid", {"pool_id": loan.pool_id, "loan_id": loan.id, "borrower": loan.borrower_id})
-        notify.notify(s, loan.borrower_org_id, "loan_repaid", f"{loan.id} is fully repaid", "Nice work.",
-                      f"/app/loans/{loan.id}")
+        notify.notify(s, loan.borrower_org_id, "loan_repaid", f"{loan.id} is fully repaid", "Every installment is paid. Nice work.",
+                      f"/app/loans/{loan.id}", email=True)
     return st, r
 
 
@@ -48,9 +48,9 @@ def _write_off(s: Session, p: Pool, loan: LoanRow, st, day: int) -> None:
                                             "junior": la.junior, "senior": la.senior})
     notify.notify(s, p.manager_org_id, "loan_defaulted", f"{loan.id} defaulted in {p.name}",
                   f"${la.loss / 100:,.2f} written off: junior ${la.junior / 100:,.2f}, senior ${la.senior / 100:,.2f}.",
-                  f"/app/my-pools/{p.id}")
+                  f"/app/my-pools/{p.id}", email=True)
     notify.notify(s, loan.borrower_org_id, "loan_defaulted", f"{loan.id} has defaulted",
-                  "Contact the pool manager to arrange recovery.", f"/app/loans/{loan.id}")
+                  "Contact the pool manager to arrange recovery.", f"/app/loans/{loan.id}", email=True)
 
 
 def _distribute(s: Session, p: Pool, interest: int, principal: int, days: int, day: int, loan_ids: list[str]):

@@ -162,7 +162,7 @@ def confirm_deposit(s: Session, chain: ChainService, intent: DepositIntent) -> D
         "shares": minted, "share_price_e6": price_e6(t), "signature": intent.signature})
     if org.id != p.manager_org_id:
         notify.notify(s, p.manager_org_id, "deposit", f"New {intent.tranche} deposit in {p.name}",
-                      f"{org.name} deposited ${intent.amount / 100:,.2f}.", f"/app/my-pools/{p.id}")
+                      f"{org.name} deposited ${intent.amount / 100:,.2f}.", f"/app/my-pools/{p.id}", email=True)
     audit.log(s, None, org.id, "deposit.confirmed", intent.signature, pool=p.id, amount=intent.amount)
     s.commit()
     return intent

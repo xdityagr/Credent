@@ -10,9 +10,10 @@ def notify(s: Session, org_id: str, kind: str, title: str, body: str = "", href:
            email: bool = False, settings=None) -> None:
     s.add(Notification(org_id=org_id, kind=kind, title=title, body=body, href=href))
     s.info.setdefault("published", []).append({"type": "Notification", "org_id": org_id, "kind": kind})
-    if email and settings is not None:
+    if email:
+        from credent.config import Settings
         from credent.services.orgs import owners
 
+        settings = settings or Settings()
         for u in owners(s, org_id):
-            cta = (("Open Credent", f"{settings.app_url}{href}") if href else None)
-            mailer.enqueue(s, u.email, title, title, body, cta)
+            mailer.notification(s, settings, u.email, kind, title, body, href)
