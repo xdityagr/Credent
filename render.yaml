@@ -8,7 +8,7 @@ services:
     dockerContext: .
     plan: free            # free sleeps after 15 min idle (first request ~1 min); use starter for a live demo
     region: singapore
-    healthCheckPath: /public/status
+    healthCheckPath: /health
     autoDeploy: true
     envVars:
       - key: DATABASE_URL

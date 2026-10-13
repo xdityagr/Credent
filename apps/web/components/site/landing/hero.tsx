@@ -2,12 +2,14 @@
 
 import { motion, useReducedMotion } from "motion/react";
 import { ButtonLink, ColumnLines, CreditNote3D, GlowText } from "@/components/ui";
+import { useChainConfig } from "@/lib/queries";
 import { TechRow } from "../tech-row";
 
 const ease = [0.16, 1, 0.3, 1] as const;
 
 export function Hero() {
   const reduce = useReducedMotion();
+  const cluster = useChainConfig().data?.cluster;
   const rise = (delay: number) =>
     reduce
       ? {}
@@ -56,7 +58,7 @@ export function Hero() {
           <span className="relative flex size-1.5">
             <span className="absolute inset-0 animate-pulse-dot rounded-full bg-junior-text" />
           </span>
-          Live on Solana devnet
+          {cluster === "local" ? "Running on the Solana runtime" : `Live on Solana ${cluster ?? "devnet"}`}
         </motion.a>
 
         <motion.h1

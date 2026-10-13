@@ -56,9 +56,9 @@ export function WalletMenu({ me }: { me: Me }) {
           <button
             type="button"
             aria-label="Wallets"
-            className="glass flex h-10 items-center gap-3 rounded-full pl-1.5 pr-3 transition hover:bg-white/[0.06] active:scale-[0.98]"
+            className="glass flex h-10 min-w-0 items-center gap-2 rounded-full pl-3 pr-2.5 transition hover:bg-white/[0.06] active:scale-[0.98] sm:gap-3 sm:pl-1.5 sm:pr-3"
           >
-            <span className="inline-flex h-7 items-center rounded-full bg-white/10 px-2.5 text-[12px] text-ink-2">cUSD</span>
+            <span className="hidden h-7 items-center rounded-full bg-white/10 px-2.5 text-[12px] text-ink-2 sm:inline-flex">cUSD</span>
             <span className="num text-[14px] text-ink">
               {balance.data ? usd(balance.data.cusd, "exact") : balance.isPending ? <Skeleton className="inline-block h-3 w-16" /> : "—"}
             </span>

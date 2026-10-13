@@ -114,12 +114,12 @@ export const cents = (v: string) => toCents(v);
 export function RevenueBars({ daily, className, tone = "ember" }: { daily: number[]; className?: string; tone?: "ember" | "horizon" }) {
   const max = Math.max(1, ...daily);
   return (
-    <div className={cn("flex h-28 items-end gap-[2px]", className)} role="img" aria-label="Daily revenue, last 90 days">
+    <div className={cn("flex h-28 items-end gap-px sm:gap-[2px]", className)} role="img" aria-label="Daily revenue, last 90 days">
       {daily.map((v, i) => (
         <div
           key={i}
           title={usd(v)}
-          className={cn("min-w-[2px] flex-1 rounded-t-[2px]", tone === "ember" ? "bg-ember-1/80" : "bg-senior/80")}
+          className={cn("min-w-0 flex-1 rounded-t-[2px]", tone === "ember" ? "bg-ember-1/80" : "bg-senior/80")}
           style={{ height: `${Math.max(2, (v / max) * 100)}%` }}
         />
       ))}

@@ -282,7 +282,7 @@ export default function RevenuePage() {
           {(rows) => (
             <div className="grid gap-6 xl:grid-cols-2">
               {rows.map((s) => (
-                <div key={s.id} className={s.kind === "STRIPE" ? "xl:col-span-2" : undefined}>
+                <div key={s.id} className={s.kind === "STRIPE" ? "min-w-0 xl:col-span-2" : "min-w-0"}>
                   <SourceCard src={s} />
                 </div>
               ))}

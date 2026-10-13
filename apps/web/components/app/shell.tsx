@@ -223,11 +223,11 @@ function Topbar({ me }: { me: Me | null }) {
             <Sidebar me={me} onNavigate={() => setMenuOpen(false)} />
           </SheetContent>
         </Sheet>
-        <Link href="/app" className="lg:hidden" aria-label="Overview">
+        <Link href="/app" className="hidden sm:block lg:hidden" aria-label="Overview">
           <Logo colour className="size-7" />
         </Link>
 
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex min-w-0 items-center gap-1.5 sm:gap-2">
           {me && <WalletMenu me={me} />}
           {me && <NotificationsBell />}
           {me && <UserMenu me={me} />}
