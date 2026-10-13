@@ -2,6 +2,8 @@
 
 import json
 
+import pytest
+
 from sqlmodel import Session, select
 
 from credent.chain import spl
@@ -80,8 +82,10 @@ def test_settle_week_idempotent(app, ctx, db):
     assert len(db.exec(select(LedgerEvent).where(LedgerEvent.type == "InterestDistributed")).all()) == n
 
 
-# I4: simulated revenue can't auto-approve a loan from a real lender's pool.
-def test_demo_revenue_not_auto_approved_by_real_pool(client, app, ctx, db):
+# I4: simulated revenue (demo business or Stripe sandbox) can't auto-approve a loan from a real lender's pool.
+@pytest.mark.parametrize("path,kind", [("/borrower/sources/demo", "DEMO"),
+                                       ("/borrower/sources/stripe/sandbox", "STRIPE_SANDBOX")])
+def test_simulated_revenue_not_auto_approved_by_real_pool(client, app, ctx, db, path, kind):
     register(client, db, "mgr@x.io", "LENDER", "Real Capital")
     client.post("/wallets/custodial")
     client.post("/chain/faucet")
@@ -94,11 +98,11 @@ def test_demo_revenue_not_auto_approved_by_real_pool(client, app, ctx, db):
     client.post("/auth/logout")
     register(client, db, "b@x.io", "BORROWER", "Borrower Co")
     client.post("/wallets/custodial")
-    src = client.post("/borrower/sources/demo", json={"profile": "saas"}).json()
+    src = client.post(path, json={"profile": "saas"}).json()
     proof = client.post("/borrower/proofs", json={"source_id": src["id"], "threshold": src["series"]["suggested_threshold"]}).json()
     r = client.post("/borrower/applications", json={"pool_id": pool["id"], "proof_id": proof["id"], "amount": 10_000_00})
     assert r.status_code == 201 and r.json()["status"] == "SUBMITTED"
-    assert r.json()["proof"]["source_kind"] == "DEMO"
+    assert r.json()["proof"]["source_kind"] == kind
 
 
 # I8: notification links point at real frontend routes.

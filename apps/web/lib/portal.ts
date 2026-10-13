@@ -29,6 +29,23 @@ export interface RevenueSource {
   attestation: { id: string; commitment: string; date: string } | null;
 }
 
+/** A charge as the connected Stripe account reports it (owner-only). Amounts in cents. */
+export interface StripeCharge {
+  id: string;
+  created: number;
+  amount: number;
+  amount_refunded: number;
+  net: number;
+  currency: string;
+  status: "succeeded" | "failed" | "pending";
+  description: string | null;
+  invoice: string | null;
+  customer: string | null;
+  card: string | null;
+  receipt_url: string | null;
+  failure_message: string | null;
+}
+
 export interface ProofView {
   id: string;
   threshold: number;
@@ -61,7 +78,7 @@ export interface ApplicationView {
   created_at: string;
   decided_at: string | null;
   pool: { id: string; slug: string; name: string };
-  proof: { id: string; threshold: number; commitment: string; expires_date: string; source_kind?: "DEMO" | "STRIPE" | "RECEIPTS" | null };
+  proof: { id: string; threshold: number; commitment: string; expires_date: string; source_kind?: "DEMO" | "STRIPE" | "STRIPE_SANDBOX" | "RECEIPTS" | null };
   borrower: {
     pseudonym: string;
     name?: string;
@@ -212,6 +229,7 @@ export interface TransferRow {
 
 export const pk = {
   sources: ["portal", "sources"] as const,
+  charges: (id: string) => ["portal", "sources", id, "charges"] as const,
   proofs: ["portal", "proofs"] as const,
   applications: ["portal", "applications"] as const,
   application: (id: string) => ["portal", "applications", id] as const,
@@ -252,6 +270,12 @@ export const useBorrowerOverview = () =>
   useQuery({ queryKey: pk.bOverview, queryFn: ({ signal }) => get<BorrowerOverview>("/borrower/overview", signal), ...LIVE });
 export const useSources = () =>
   useQuery({ queryKey: pk.sources, queryFn: ({ signal }) => get<RevenueSource[]>("/borrower/sources", signal) });
+export const useSourceCharges = (id: string, limit: number) =>
+  useQuery({
+    queryKey: [...pk.charges(id), limit],
+    queryFn: ({ signal }) => get<StripeCharge[]>(`/borrower/sources/${id}/charges?limit=${limit}`, signal),
+    ...LIVE,
+  });
 export const useProofs = () =>
   useQuery({ queryKey: pk.proofs, queryFn: ({ signal }) => get<ProofView[]>("/borrower/proofs", signal) });
 export const useMyApplications = () =>
@@ -269,6 +293,7 @@ export function useBorrowerActions() {
   return {
     connectDemo: useAct((profile: string) => post<RevenueSource>("/borrower/sources/demo", { profile })),
     connectStripe: useAct((key: string) => post<RevenueSource>("/borrower/sources/stripe", { key })),
+    connectStripeSandbox: useAct((profile: string) => post<RevenueSource>("/borrower/sources/stripe/sandbox", { profile })),
     connectReceipts: useAct((v: { file: File; label: string }) => {
       const form = new FormData();
       form.append("file", v.file);

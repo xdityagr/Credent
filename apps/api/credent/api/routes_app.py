@@ -12,7 +12,7 @@ from sqlmodel import col, select
 
 from credent.api.deps import BorrowerDep, ChainDep, CtxDep, LenderDep, OrgDep, SessionDep, UserDep, limiter
 from credent.chain.client import explorer_tx
-from credent.errors import Forbidden, NotFound, ReceiptInvalid
+from credent.errors import Forbidden, InvalidAmount, NotFound, ReceiptInvalid
 from credent.models import Application, ChainTransfer, LoanRow, Notification, Organization, Pool, Position
 from credent.services import (
     applications,
@@ -100,6 +100,24 @@ def connect_stripe(body: StripeIn, org: BorrowerDep, s: SessionDep, ctx: CtxDep)
         src = revenue.connect_stripe(s, ctx, org, body.key)
         s.commit()
     return revenue.source_view(s, src)
+
+
+@router.post("/borrower/sources/stripe/sandbox", tags=["borrower"])
+def connect_stripe_sandbox(body: DemoSourceIn, org: BorrowerDep, s: SessionDep, ctx: CtxDep) -> dict:
+    """Connect a simulated Stripe account (realistic customers, invoices, refunds) through the real connector."""
+    from credent.sources import stripe_sandbox
+
+    if body.profile not in ("saas", "ecommerce", "distressed"):
+        raise InvalidAmount("Choose a business type for the sandbox account.")
+    with ctx.write_lock:
+        src = revenue.connect_stripe(s, ctx, org, stripe_sandbox.new_key(body.profile))
+        s.commit()
+    return revenue.source_view(s, src)
+
+
+@router.get("/borrower/sources/{source_id}/charges", tags=["borrower"])
+def source_charges(source_id: str, org: BorrowerDep, s: SessionDep, ctx: CtxDep, limit: int = 25) -> list[dict]:
+    return revenue.recent_charges(s, ctx, revenue.get_source(s, org, source_id), limit)
 
 
 @router.get("/borrower/sample-receipts", tags=["borrower"])

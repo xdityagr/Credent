@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRef, useState } from "react";
 import { RevenueBars, SectionPanel } from "@/components/app/portal";
 import { RoleGate } from "@/components/app/kit";
+import { StripeCharges } from "@/components/app/stripe-charges";
 import {
   Badge,
   Button,
@@ -37,11 +38,12 @@ function ConnectDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v
   const [method, setMethod] = useState<Method>("demo");
   const [profile, setProfile] = useState("saas");
   const [key, setKey] = useState("");
+  const [stripeMode, setStripeMode] = useState<"sandbox" | "key">("sandbox");
   const [file, setFile] = useState<File | null>(null);
   const [label, setLabel] = useState("Signed receipts");
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
-  const busy = a.connectDemo.isPending || a.connectStripe.isPending || a.connectReceipts.isPending;
+  const busy = a.connectDemo.isPending || a.connectStripe.isPending || a.connectStripeSandbox.isPending || a.connectReceipts.isPending;
 
   async function sample(tampered: boolean) {
     try {
@@ -61,7 +63,8 @@ function ConnectDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v
     setError(null);
     try {
       if (method === "demo") await a.connectDemo.mutateAsync(profile);
-      if (method === "stripe") await a.connectStripe.mutateAsync(key);
+      if (method === "stripe" && stripeMode === "sandbox") await a.connectStripeSandbox.mutateAsync(profile);
+      if (method === "stripe" && stripeMode === "key") await a.connectStripe.mutateAsync(key);
       if (method === "receipts") {
         if (!file) throw new Error("Choose a receipts file.");
         await a.connectReceipts.mutateAsync({ file, label });
@@ -87,7 +90,7 @@ function ConnectDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v
             onChange={(v) => { setMethod(v); setError(null); }}
             options={[
               { value: "demo", label: "Demo business" },
-              { value: "stripe", label: "Stripe test mode" },
+              { value: "stripe", label: "Stripe" },
               { value: "receipts", label: "Signed receipts" },
             ]}
           />
@@ -109,12 +112,52 @@ function ConnectDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v
             </div>
           )}
           {method === "stripe" && (
-            <Field
-              label="Restricted test key"
-              hint={<>Create one in Stripe → Developers → API keys with read access to Charges. Only <code>rk_test_</code> or <code>sk_test_</code> keys are accepted; it&apos;s encrypted at rest.</>}
-            >
-              <Input value={key} onChange={(e) => setKey(e.target.value)} placeholder="rk_test_..." autoComplete="off" spellCheck={false} />
-            </Field>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-2">
+                {([
+                  ["sandbox", "Sandbox account", "No key needed. A simulated Stripe account with customers, invoices and refunds."],
+                  ["key", "Your test key", "Read charges from your own Stripe account in test mode."],
+                ] as const).map(([v, t, b]) => (
+                  <button
+                    key={v}
+                    type="button"
+                    aria-pressed={stripeMode === v}
+                    onClick={() => { setStripeMode(v); setError(null); }}
+                    className={`rounded-[16px] border p-3.5 text-left transition ${stripeMode === v ? "border-[#635bff]/70 bg-[#635bff]/[0.08]" : "border-line hover:border-line-strong"}`}
+                  >
+                    <span className="block text-[14px] text-ink">{t}</span>
+                    <span className="mt-0.5 block text-[12.5px] leading-snug text-ink-3">{b}</span>
+                  </button>
+                ))}
+              </div>
+              {stripeMode === "sandbox" ? (
+                <div className="space-y-2">
+                  <div className="text-[12.5px] text-ink-3">Business type</div>
+                  {PROFILES.map((p) => (
+                    <button
+                      key={p.key}
+                      type="button"
+                      aria-pressed={profile === p.key}
+                      onClick={() => setProfile(p.key)}
+                      className={`w-full rounded-[14px] border px-4 py-3 text-left transition ${profile === p.key ? "border-[#635bff]/60 bg-[#635bff]/[0.06]" : "border-line hover:border-line-strong"}`}
+                    >
+                      <span className="block text-[14px] text-ink">{p.label}</span>
+                      <span className="block text-[12.5px] text-ink-3">{p.body}</span>
+                    </button>
+                  ))}
+                  <p className="text-[12.5px] text-ink-3">
+                    Goes through the real Stripe connector: 90 days of charges are paged in, and new payments sync into your lockbox as the clock runs.
+                  </p>
+                </div>
+              ) : (
+                <Field
+                  label="Restricted test key"
+                  hint={<>Create one in Stripe → Developers → API keys with read access to Charges. Only <code>rk_test_</code> or <code>sk_test_</code> keys are accepted; it&apos;s encrypted at rest.</>}
+                >
+                  <Input value={key} onChange={(e) => setKey(e.target.value)} placeholder="rk_test_..." autoComplete="off" spellCheck={false} />
+                </Field>
+              )}
+            </div>
           )}
           {method === "receipts" && (
             <div className="space-y-3">
@@ -141,10 +184,10 @@ function ConnectDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v
             variant="ember"
             className="w-full"
             busy={busy}
-            disabled={(method === "stripe" && !key) || (method === "receipts" && !file)}
+            disabled={(method === "stripe" && stripeMode === "key" && !key) || (method === "receipts" && !file)}
             onClick={connect}
           >
-            {method === "stripe" ? "Connect Stripe" : method === "receipts" ? "Verify receipts" : "Connect demo business"}
+            {method === "stripe" ? (stripeMode === "sandbox" ? "Create sandbox account" : "Connect Stripe") : method === "receipts" ? "Verify receipts" : "Connect demo business"}
           </Button>
         </div>
       </DialogContent>
@@ -190,6 +233,11 @@ function SourceCard({ src }: { src: RevenueSource }) {
             </div>
           </div>
           <RevenueBars daily={s.daily} />
+          {src.kind === "STRIPE" && (
+            <div className="border-t border-line pt-4">
+              <StripeCharges sourceId={src.id} />
+            </div>
+          )}
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
             <p className="text-[13px] text-ink-3">
               {src.attestation ? <>Notarised commitment <span className="font-mono">{src.attestation.commitment.slice(0, 12)}…</span></> : "Not notarised yet. Proving notarises it first."}
@@ -226,12 +274,20 @@ export default function RevenuePage() {
               tone="ember"
               icon={<LineChart />}
               title="No revenue source connected"
-              body="Connect Stripe in test mode, upload signed payment receipts, or start with a demo business to try the whole flow."
+              body="Connect Stripe (a sandbox account works with no key), upload signed payment receipts, or start with a demo business to try the whole flow."
               action={<Button size="sm" variant="ember" onClick={() => setOpen(true)}>Connect a source</Button>}
             />
           }
         >
-          {(rows) => <div className="grid gap-6 xl:grid-cols-2">{rows.map((s) => <SourceCard key={s.id} src={s} />)}</div>}
+          {(rows) => (
+            <div className="grid gap-6 xl:grid-cols-2">
+              {rows.map((s) => (
+                <div key={s.id} className={s.kind === "STRIPE" ? "xl:col-span-2" : undefined}>
+                  <SourceCard src={s} />
+                </div>
+              ))}
+            </div>
+          )}
         </QueryView>
         <ConnectDialog open={open} onOpenChange={setOpen} />
       </div>

@@ -82,7 +82,10 @@ def apply(s: Session, chain, org: Organization, pool_id: str, proof_id: str, amo
 
     src = s.get(RevenueSource, proof.source_id)
     manager = s.get(Organization, p.manager_org_id)
-    trusted_source = (src is not None and src.kind == "STRIPE") or manager.is_demo
+    from credent.services.revenue import is_simulated
+
+    # only real processor data may skip a human; simulated revenue (demo, Stripe sandbox) goes to review
+    trusted_source = (src is not None and src.kind == "STRIPE" and not is_simulated(src)) or manager.is_demo
     if p.auto_approve and trusted_source and amount <= (p.auto_approve_max or cap):
         _decide(s, p, app, "APPROVED", "Approved automatically: proof meets the pool's rules.", None, auto=True)
         notify.notify(s, org.id, "application_approved", f"Approved by {p.name}",
@@ -210,8 +213,10 @@ def view(s: Session, app: Application, for_manager: bool = False) -> dict:
 def _source_kind(s: Session, proof: ProofRow) -> str | None:
     from credent.models import RevenueSource
 
+    from credent.services.revenue import kind_of
+
     src = s.get(RevenueSource, proof.source_id)
-    return src.kind if src else None
+    return kind_of(src) if src else None
 
 
 def track_record(s: Session, org_id: str) -> dict:

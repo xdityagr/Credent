@@ -13,7 +13,7 @@ from sqlmodel import Session, col, select
 from credent import ledger
 from credent.auth.security import now
 from credent.errors import InvalidAmount, NotFound, ProofInvalid, ProofMismatch, StepOutOfOrder
-from credent.models import AttestationRow, Organization, PrivateSeries, ProofRow, RevenueSource
+from credent.models import AttestationRow, Organization, PrivatePayment, PrivateSeries, ProofRow, RevenueSource
 from credent.notary import Attestation, attest as notary_attest, verify_attestation
 from credent.services import audit, clock
 from credent.services.context import Ctx
@@ -98,6 +98,15 @@ def connect_series(s: Session, org: Organization, kind: str, label: str, account
     s.flush()
     _store(s, org, src, account_ref, daily)
     return src
+
+
+def is_simulated(src: RevenueSource) -> bool:
+    """Demo businesses and Stripe sandbox accounts (a sandbox source carries its profile)."""
+    return src.kind == "DEMO" or (src.kind == "STRIPE" and src.profile is not None)
+
+
+def kind_of(src: RevenueSource) -> str:
+    return "STRIPE_SANDBOX" if src.kind == "STRIPE" and src.profile else src.kind
 
 
 def sources(s: Session, org: Organization) -> list[RevenueSource]:
@@ -231,6 +240,15 @@ def _master(ctx: Ctx) -> bytes:
     return bytes(ctx.keys.get("custody-master"))
 
 
+def _stripe_http(s: Session, key: str, http=None):
+    """Real Stripe for test keys; Credent's simulated account for sandbox keys."""
+    from credent.sources import stripe_sandbox
+
+    if http is not None or not stripe_sandbox.is_sandbox(key):
+        return http
+    return stripe_sandbox.client(key, clock.state(s).genesis, clock.LAUNCH_DAY, clock.today(s))
+
+
 def connect_stripe(s: Session, ctx: Ctx, org: Organization, key: str, http=None) -> RevenueSource:
     from datetime import timedelta
 
@@ -240,10 +258,16 @@ def connect_stripe(s: Session, ctx: Ctx, org: Organization, key: str, http=None)
     start, _ = period(s)
     day_of = stripe.ts_to_day(clock.state(s).genesis, clock.LAUNCH_DAY)
     since = int((clock.date_of(s, start) - timedelta(days=1)).timestamp())
-    charges = stripe.charges_since(key, since, http)
+    charges = stripe.charges_since(key, since, _stripe_http(s, key, http))
     daily = stripe.bucket(charges, day_of, start, HISTORY_DAYS)
-    cursor = max((int(c["created"]) for c in charges), default=since)
-    src = connect_series(s, org, "STRIPE", "Stripe (test mode)", stripe.account_ref(key), daily,
+    # history already counts every charge up to the newest one; live polling starts after it
+    cursor = max((int(c["created"]) for c in charges), default=since) + 1
+    from credent.sources import stripe_sandbox
+
+    sandbox = stripe_sandbox.is_sandbox(key)
+    label = "Stripe sandbox" if sandbox else "Stripe (test mode)"
+    src = connect_series(s, org, "STRIPE", label, stripe.account_ref(key), daily,
+                         profile=key[len(stripe_sandbox.PREFIX):].split("_", 1)[0] if sandbox else None,
                          stripe_key_enc=stripe.encrypt(_master(ctx), key), stripe_account_hash=stripe.account_ref(key),
                          cursor=cursor)
     audit.log(s, None, org.id, "revenue.connect", "STRIPE", charges=len(charges))
@@ -258,14 +282,39 @@ def poll_stripe(s: Session, ctx: Ctx, src: RevenueSource, http=None) -> int:
     if src.kind != "STRIPE" or not src.stripe_key_enc:
         return 0
     key = stripe.decrypt(_master(ctx), src.stripe_key_enc)
-    charges = stripe.charges_since(key, src.cursor or 0, http)  # gte: ingest is idempotent per charge
+    charges = stripe.charges_since(key, src.cursor or 0, _stripe_http(s, key, http))  # gte: idempotent ingest
     n = 0
     for c in sorted(charges, key=lambda c: c["created"]):
-        amount = stripe.net_usd(c)
-        if amount > 0:
-            collections.ingest(s, src.org_id, amount, f"stripe:{c['id']}", src.id)
+        amount, ref = stripe.net_usd(c), f"stripe:{c['id']}"
+        # gte re-delivers charges at the cursor second; ingest is idempotent, count only new ones
+        if amount > 0 and not s.exec(select(PrivatePayment.id).where(PrivatePayment.external_ref == ref)).first():
+            collections.ingest(s, src.org_id, amount, ref, src.id)
             n += 1
         src.cursor = max(src.cursor or 0, int(c["created"]))
     src.last_polled_at = now()
     s.add(src)
     return n
+
+
+def recent_charges(s: Session, ctx: Ctx, src: RevenueSource, limit: int = 25, http=None) -> list[dict]:
+    """The latest charges on the connected Stripe account, as Stripe reports them (owner-only view)."""
+    from credent.sources import stripe
+
+    if src.kind != "STRIPE" or not src.stripe_key_enc:
+        return []
+    key = stripe.decrypt(_master(ctx), src.stripe_key_enc)
+    client = _stripe_http(s, key, http) or __import__("httpx").Client(timeout=20)
+    r = client.get(f"{stripe.API}/charges", params={"limit": min(limit, 100)}, headers={"Authorization": f"Bearer {key}"})
+    if r.status_code >= 400:
+        raise stripe.StripeError(r.json().get("error", {}).get("message", "Stripe request failed."))
+    out = []
+    for c in r.json().get("data", []):
+        card = (c.get("payment_method_details") or {}).get("card") or {}
+        out.append({"id": c["id"], "created": int(c["created"]), "amount": int(c.get("amount", 0)),
+                    "amount_refunded": int(c.get("amount_refunded", 0)), "net": stripe.net_usd(c),
+                    "currency": c.get("currency", "usd"), "status": c.get("status"),
+                    "description": c.get("description"), "invoice": c.get("invoice"),
+                    "customer": (c.get("billing_details") or {}).get("name"),
+                    "card": f"{card.get('brand', '').title()} ····{card.get('last4')}" if card.get("last4") else None,
+                    "receipt_url": c.get("receipt_url"), "failure_message": c.get("failure_message")})
+    return out

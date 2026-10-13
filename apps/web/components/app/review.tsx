@@ -65,7 +65,7 @@ export function ReviewCard({ app }: { app: ApplicationView }) {
         <Stat
           label="Revenue source"
           value={
-            app.proof.source_kind === "STRIPE" ? "Stripe (test mode)" : app.proof.source_kind === "RECEIPTS" ? "Signed receipts" : app.proof.source_kind === "DEMO" ? <span className="text-warn">Demo business (simulated)</span> : "—"
+            app.proof.source_kind === "STRIPE" ? "Stripe (test mode)" : app.proof.source_kind === "STRIPE_SANDBOX" ? <span className="text-warn">Stripe sandbox (simulated)</span> : app.proof.source_kind === "RECEIPTS" ? "Signed receipts" : app.proof.source_kind === "DEMO" ? <span className="text-warn">Demo business (simulated)</span> : "—"
           }
         />
         <Stat label="Pool" value={app.pool.name} />

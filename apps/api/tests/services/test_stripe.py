@@ -68,3 +68,46 @@ def test_poll_ingests_new_charges_once(session, ctx, borrower):
     revenue.poll_stripe(session, ctx, src, fake_stripe([new], []))  # replay is idempotent
     pays = session.exec(select(PrivatePayment)).all()
     assert len(pays) == 1 and pays[0].external_ref == "stripe:ch_9" and pays[0].released == 300_00
+
+
+# ---------------- sandbox account ----------------
+from credent.sources import stripe_sandbox  # noqa: E402
+
+
+def test_sandbox_account_connects_with_90_days(session, ctx, borrower):
+    clock.state(session)
+    key = stripe_sandbox.new_key("saas")
+    src = revenue.connect_stripe(session, ctx, borrower, key)
+    view = revenue.series_view(revenue.series(session, src))
+    assert src.label == "Stripe sandbox"
+    assert view["total"] > 0 and sum(1 for d in view["daily"] if d > 0) >= 85
+    charges = revenue.recent_charges(session, ctx, src, 50)
+    assert charges and charges[0]["created"] >= charges[-1]["created"]  # newest first
+    assert all(c["invoice"] or c["status"] == "failed" for c in charges)
+    assert {"customer", "description", "amount", "status"} <= set(charges[0])
+
+
+def test_sandbox_net_revenue_excludes_failures_and_refunds(session, ctx, borrower):
+    clock.state(session)
+    key = stripe_sandbox.new_key("ecommerce")
+    src = revenue.connect_stripe(session, ctx, borrower, key)
+    row = revenue.series(session, src)
+    st = clock.state(session)
+    day0 = clock.today(session) - 90
+    expected = 0
+    for d in range(day0, clock.today(session)):
+        for c in stripe_sandbox.charges_for_day(key, d, clock.date_of(session, d)):
+            expected += stripe.net_usd(c)
+    assert row.total == expected and st
+
+
+def test_sandbox_poll_ingests_new_days_once(session, ctx, borrower):
+    st = clock.state(session)
+    src = revenue.connect_stripe(session, ctx, borrower, stripe_sandbox.new_key("saas"))
+    assert revenue.poll_stripe(session, ctx, src) == 0  # nothing new yet
+    st.day += 2
+    session.add(st)
+    n = revenue.poll_stripe(session, ctx, src)
+    assert n > 0
+    assert revenue.poll_stripe(session, ctx, src) == 0
+    assert len(session.exec(select(PrivatePayment)).all()) == n
