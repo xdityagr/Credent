@@ -8,6 +8,7 @@ for custodial demo wallets), loans are drawn from vaults, payments are swept.
 """
 
 import secrets
+import time
 from datetime import datetime, timezone
 
 from sqlmodel import Session, col, select
@@ -79,9 +80,32 @@ def _org(s: Session, ctx: Ctx, world: str, key: str, kind: str, spec: dict) -> t
     return user, org
 
 
+def _wait(chain, done, what: str, timeout: float = 120.0) -> None:
+    """On a real cluster transactions take seconds to confirm; the seed builds on each one, so wait."""
+    deadline = time.monotonic() + timeout
+    while not done():
+        if time.monotonic() > deadline:
+            raise DomainError(f"Timed out waiting for Solana to confirm the {what}. Try the reset again.")
+        time.sleep(0 if chain.cluster == "local" else 1.5)
+
+
+def _faucet(s: Session, chain, org: Organization, cents: int) -> None:
+    sig = funds.faucet(s, chain, org, cents)["signature"]
+    s.commit()
+    _wait(chain, lambda: (st := chain.client.status(sig)) is not None and st.confirmed, "faucet mint")
+
+
 def _deposit(s: Session, chain, org: Organization, p, tranche: str, cents: int) -> None:
     prep = funds.prepare_deposit(s, chain, org, p, tranche, cents)
-    funds.submit_deposit(s, chain, org, prep["intent_id"], None)  # custodial: already signed by the server
+    intent = funds.submit_deposit(s, chain, org, prep["intent_id"], None)  # custodial: already signed by the server
+
+    def credited() -> bool:
+        funds.confirm_deposit(s, chain, intent)
+        if intent.status in ("FAILED", "EXPIRED"):
+            raise DomainError(f"Seed deposit didn't land: {intent.error}")
+        return intent.status == "CONFIRMED"
+
+    _wait(chain, credited, f"{tranche} deposit")
 
 
 def reset(engine, ctx: Ctx, warmup_days: int = 28) -> None:
@@ -103,7 +127,7 @@ def seed(s: Session, ctx: Ctx, chain, world: str) -> None:
     managers, pool_by_key = {}, {}
     for spec in LENDERS:
         user, org = _org(s, ctx, world, spec["key"], "LENDER", spec)
-        funds.faucet(s, chain, org, spec["junior"] + 50_000_00)
+        _faucet(s, chain, org, spec["junior"] + 50_000_00)
         p = pools.create(s, chain, user, org, spec["pool"])
         pools.start_funding(s, chain, user, org, p)
         s.commit()
@@ -112,8 +136,7 @@ def seed(s: Session, ctx: Ctx, chain, world: str) -> None:
         s.commit()
         managers[spec["key"]], pool_by_key[spec["key"]] = (user, org), p
     _, atlas = _org(s, ctx, world, CO_INVESTOR["key"], "LENDER", CO_INVESTOR)
-    funds.faucet(s, chain, atlas, sum(CO_INVESTOR["senior"].values()))
-    s.commit()
+    _faucet(s, chain, atlas, sum(CO_INVESTOR["senior"].values()))
     for key, amount in CO_INVESTOR["senior"].items():
         _deposit(s, chain, atlas, pool_by_key[key], "senior", amount)
     for spec in BORROWERS:
