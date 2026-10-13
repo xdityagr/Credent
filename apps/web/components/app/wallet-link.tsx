@@ -50,7 +50,7 @@ export function WalletLink({ onLinked, allowCustodial = true }: { onLinked?: (w:
     try {
       const { message } = await m.challenge.mutateAsync(address);
       const sig = await signMessage(new TextEncoder().encode(message));
-      const w = await m.verify.mutateAsync({ address, signature: bs58.encode(sig) });
+      const w = await m.verify.mutateAsync({ address, signature: bs58.encode(sig), provider: wallet?.adapter.name });
       toast.success("Wallet linked", { description: short(w.address, 6, 6) });
       onLinked?.(w);
     } catch (e) {
@@ -71,7 +71,10 @@ export function WalletLink({ onLinked, allowCustodial = true }: { onLinked?: (w:
     }
   };
 
-  const options = wallets.filter((w) => ["Phantom", "Solflare"].includes(w.adapter.name));
+  const detected = wallets.filter(
+    (w) => w.readyState === WalletReadyState.Installed || w.readyState === WalletReadyState.Loadable,
+  );
+  const missing = Object.keys(INSTALL).filter((name) => !detected.some((w) => w.adapter.name === name));
 
   return (
     <div className="space-y-4">
@@ -96,10 +99,9 @@ export function WalletLink({ onLinked, allowCustodial = true }: { onLinked?: (w:
         </div>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
-          {options.map((w) => {
-            const installed = w.readyState === WalletReadyState.Installed || w.readyState === WalletReadyState.Loadable;
+          {detected.map((w) => {
             const busy = connecting && target === w.adapter.name;
-            return installed ? (
+            return (
               <button
                 key={w.adapter.name}
                 type="button"
@@ -111,30 +113,31 @@ export function WalletLink({ onLinked, allowCustodial = true }: { onLinked?: (w:
                 }}
                 className="group flex items-center gap-3 rounded-[18px] border border-line-strong bg-white/[0.03] p-4 text-left transition hover:border-horizon-2/50 hover:bg-white/[0.05] active:scale-[0.98] disabled:opacity-60"
               >
-                <img src={w.adapter.icon} alt="" className="size-9 rounded-xl" />
+                <img src={w.adapter.icon} alt="" className="size-9 shrink-0 rounded-xl" />
                 <span>
                   <span className="block text-[15px] text-ink">{w.adapter.name}</span>
                   <span className="block text-[12.5px] text-ink-3">{busy ? "Waiting for the wallet…" : "Detected in this browser"}</span>
                 </span>
               </button>
-            ) : (
-              <a
-                key={w.adapter.name}
-                href={INSTALL[w.adapter.name] ?? w.adapter.url}
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center gap-3 rounded-[18px] border border-line bg-transparent p-4 text-left opacity-80 transition hover:opacity-100"
-              >
-                <img src={w.adapter.icon} alt="" className="size-9 rounded-xl grayscale" />
-                <span className="min-w-0">
-                  <span className="block text-[15px] text-ink">{w.adapter.name}</span>
-                  <span className="inline-flex items-center gap-1 text-[12.5px] text-ink-3">
-                    Not installed. Get it <ExternalLink className="size-3" />
-                  </span>
-                </span>
-              </a>
             );
           })}
+          {missing.map((name) => (
+            <a
+              key={name}
+              href={INSTALL[name]}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-3 rounded-[18px] border border-line bg-transparent p-4 text-left opacity-80 transition hover:opacity-100"
+            >
+              <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-xl bg-white/[0.06] text-[15px] text-ink-2">{name[0]}</span>
+              <span className="min-w-0">
+                <span className="block text-[15px] text-ink">{name}</span>
+                <span className="inline-flex items-center gap-1 text-[12.5px] text-ink-3">
+                  Not detected · Get it <ExternalLink className="size-3" />
+                </span>
+              </span>
+            </a>
+          ))}
         </div>
       )}
 

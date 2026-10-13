@@ -5,6 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, File, Request, Response, UploadFile
 from pydantic import BaseModel, Field
 
+from credent.mail import mailer
 from credent.api.deps import (
     AuthDep,
     ChainDep,
@@ -83,10 +84,12 @@ class AddressIn(BaseModel):
 class WalletVerifyIn(BaseModel):
     address: str
     signature: str
+    provider: str | None = Field(default=None, max_length=40)
 
 
-class PrimaryIn(BaseModel):
-    is_primary: bool = Field(default=True)
+class WalletPatchIn(BaseModel):
+    is_primary: bool | None = None
+    provider: str | None = Field(default=None, max_length=40)  # display label, e.g. "Phantom"
 
 
 def _set_cookie(response: Response, request: Request, token: str) -> None:
@@ -150,8 +153,9 @@ def forgot(body: EmailIn, request: Request, s: SessionDep, ctx: CtxDep) -> dict:
 
 
 @router.post("/auth/reset-password", tags=["auth"])
-def reset(body: ResetIn, s: SessionDep) -> dict:
-    accounts.reset_password(s, body.token, body.password)
+def reset(body: ResetIn, s: SessionDep, ctx: CtxDep) -> dict:
+    user = accounts.reset_password(s, body.token, body.password)
+    mailer.password_changed(s, ctx.settings, user.email, user.name)
     s.commit()
     return {"ok": True}
 
@@ -182,8 +186,9 @@ def update_me(body: ProfileIn, user: UserDep, s: SessionDep) -> dict:
 
 
 @router.post("/me/password", tags=["me"])
-def change_password(body: PasswordIn, user: UserDep, auth: AuthDep, s: SessionDep) -> dict:
+def change_password(body: PasswordIn, user: UserDep, auth: AuthDep, s: SessionDep, ctx: CtxDep) -> dict:
     accounts.change_password(s, user, body.current, body.new, keep=auth.id_hash)
+    mailer.password_changed(s, ctx.settings, user.email, user.name)
     s.commit()
     return {"ok": True}
 
@@ -240,24 +245,33 @@ def wallet_challenge(body: AddressIn, user: UserDep, org: OrgDep, s: SessionDep,
 
 
 @router.post("/wallets/verify", tags=["wallets"])
-def wallet_verify(body: WalletVerifyIn, user: UserDep, org: OrgDep, s: SessionDep) -> dict:
-    w = wallets.verify(s, user, org, body.address, body.signature)
+def wallet_verify(body: WalletVerifyIn, user: UserDep, org: OrgDep, s: SessionDep, ctx: CtxDep) -> dict:
+    first = wallets.primary(s, org) is None
+    w = wallets.verify(s, user, org, body.address, body.signature, body.provider)
+    if first:
+        mailer.welcome(s, ctx.settings, user.email, user.name, org.name, org.kind, org.pseudonym)
     s.commit()
     return _wallet(w)
 
 
 @router.post("/wallets/custodial", tags=["wallets"])
 def wallet_custodial(user: UserDep, org: OrgDep, s: SessionDep, ctx: CtxDep) -> dict:
+    first = wallets.primary(s, org) is None
     w = wallets.create_custodial(s, ctx, clock.world(s), user, org)
+    if first:
+        mailer.welcome(s, ctx.settings, user.email, user.name, org.name, org.kind, org.pseudonym)
     s.commit()
     return _wallet(w)
 
 
 @router.patch("/wallets/{address}", tags=["wallets"])
-def wallet_primary(address: str, body: PrimaryIn, org: OrgDep, s: SessionDep) -> dict:
-    if not body.is_primary:
+def wallet_update(address: str, body: WalletPatchIn, org: OrgDep, s: SessionDep) -> dict:
+    if body.is_primary is False:
         raise NotFound("Choose a different wallet as primary instead.")
-    w = wallets.set_primary(s, org, address)
+    w = wallets.set_primary(s, org, address) if body.is_primary else wallets.get_own(s, org, address)
+    if body.provider and w.kind == "EXTERNAL":
+        w.provider = " ".join(body.provider.split())[:40] or None
+        s.add(w)
     s.commit()
     return _wallet(w)
 
@@ -270,4 +284,5 @@ def wallet_remove(address: str, user: UserDep, org: OrgDep, s: SessionDep) -> di
 
 
 def _wallet(w) -> dict:
-    return {"address": w.address, "kind": w.kind, "is_primary": w.is_primary, "verified_at": w.verified_at.isoformat()}
+    return {"address": w.address, "kind": w.kind, "provider": w.provider, "is_primary": w.is_primary,
+            "verified_at": w.verified_at.isoformat()}

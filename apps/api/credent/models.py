@@ -98,6 +98,7 @@ class Wallet(SQLModel, table=True):
     address: str = Field(primary_key=True)
     org_id: str = Field(foreign_key="organization.id", index=True)
     kind: str = "EXTERNAL"  # EXTERNAL | CUSTODIAL
+    provider: str | None = None  # wallet app used to link it ("Phantom", "Solflare"); display only
     is_primary: bool = False
     verified_at: datetime = Field(default_factory=_now)
 

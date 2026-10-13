@@ -30,6 +30,8 @@ export interface Org {
 export interface Wallet {
   address: string;
   kind: "EXTERNAL" | "CUSTODIAL";
+  /** Wallet app used to link it, e.g. "Phantom". Null for older links. */
+  provider: string | null;
   is_primary: boolean;
   verified_at: string | null;
 }

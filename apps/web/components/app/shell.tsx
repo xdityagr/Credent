@@ -17,7 +17,6 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
-  Address,
   EmptyState,
   ErrorState,
   IconButton,
@@ -35,10 +34,11 @@ import {
   Skeleton,
   Wordmark,
 } from "@/components/ui";
+import { WalletMenu } from "@/components/app/wallet-menu";
 import { cn } from "@/lib/cn";
-import { relative, usd } from "@/lib/format";
+import { relative } from "@/lib/format";
 import { SHARED_NAV, isActive, navFor, type NavItem } from "@/lib/nav";
-import { useBalance, useLogout, useMarkRead, useMe, useNotifications } from "@/lib/queries";
+import { useLogout, useMarkRead, useMe, useNotifications } from "@/lib/queries";
 import { SessionProvider } from "@/lib/session";
 import type { Me, Notification } from "@/lib/types";
 
@@ -209,8 +209,6 @@ function Sidebar({ me, onNavigate }: { me: Me | null; onNavigate?: () => void })
 
 function Topbar({ me }: { me: Me | null }) {
   const [menuOpen, setMenuOpen] = useState(false);
-  const primary = me?.wallets.find((w) => w.is_primary) ?? me?.wallets[0];
-  const balance = useBalance(Boolean(me && primary));
 
   return (
     <header className="sticky top-0 z-40 border-b border-line bg-black/70 backdrop-blur-xl">
@@ -230,16 +228,7 @@ function Topbar({ me }: { me: Me | null }) {
         </Link>
 
         <div className="ml-auto flex items-center gap-2">
-          {primary && (
-            <div className="glass hidden h-10 items-center gap-3 rounded-full pl-1.5 pr-4 sm:flex">
-              <span className="inline-flex h-7 items-center rounded-full bg-white/10 px-2.5 text-[12px] text-ink-2">cUSD</span>
-              <span className="num text-[14px] text-ink">
-                {balance.data ? usd(balance.data.cusd, "exact") : balance.isPending ? <Skeleton className="inline-block h-3 w-16" /> : "—"}
-              </span>
-              <span className="h-4 w-px bg-line-strong" />
-              <Address value={primary.address} />
-            </div>
-          )}
+          {me && <WalletMenu me={me} />}
           {me && <NotificationsBell />}
           {me && <UserMenu me={me} />}
         </div>

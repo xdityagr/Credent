@@ -109,7 +109,7 @@ def forgot_password(s: Session, settings: Settings, email: str) -> None:
         mailer.reset_password(s, settings, user.email, sec.issue_token(s, user.id, "RESET_PASSWORD", hours=1))
 
 
-def reset_password(s: Session, token: str, password: str) -> None:
+def reset_password(s: Session, token: str, password: str) -> User:
     if problem := sec.password_problem(password):
         raise WeakPassword(problem)
     row = sec.consume_token(s, token, "RESET_PASSWORD")
@@ -124,6 +124,7 @@ def reset_password(s: Session, token: str, password: str) -> None:
         sess.revoked_at = sec.now()
         s.add(sess)
     audit.log(s, user.id, None, "user.reset_password")
+    return user
 
 
 def change_password(s: Session, user: User, current: str, new: str, keep: str | None = None) -> None:
@@ -189,7 +190,7 @@ def me(s: Session, user: User) -> dict:
                  "email_verified": user.email_verified_at is not None, "avatar_url": user.avatar_url},
         "org": orgs.view(org) if org else None,
         "membership": {"role": membership.role} if membership else None,
-        "wallets": [{"address": w.address, "kind": w.kind, "is_primary": w.is_primary,
+        "wallets": [{"address": w.address, "kind": w.kind, "provider": w.provider, "is_primary": w.is_primary,
                      "verified_at": w.verified_at.isoformat()} for w in wallets],
         "onboarding": {"step": step},
     }

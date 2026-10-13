@@ -34,7 +34,8 @@ def challenge(s: Session, settings, user: User, org: Organization, address: str)
     return msg
 
 
-def verify(s: Session, user: User, org: Organization, address: str, signature: str) -> Wallet:
+def verify(s: Session, user: User, org: Organization, address: str, signature: str,
+           provider: str | None = None) -> Wallet:
     ch = s.exec(select(WalletChallenge).where(WalletChallenge.user_id == user.id, WalletChallenge.address == address)
                 .order_by(WalletChallenge.expires_at.desc())).first()
     if ch is None or aware(ch.expires_at) < now():
@@ -47,6 +48,8 @@ def verify(s: Session, user: User, org: Organization, address: str, signature: s
     if existing and existing.org_id != org.id:
         raise InvalidAmount("This wallet is already linked to another organisation.")
     w = existing or Wallet(address=address, org_id=org.id, kind="EXTERNAL")
+    if provider:
+        w.provider = " ".join(provider.split())[:40] or None
     if not primary(s, org):
         w.is_primary = True
     s.add(w)
@@ -72,6 +75,13 @@ def require_primary(s: Session, org: Organization) -> Wallet:
     w = primary(s, org)
     if w is None:
         raise WalletRequired()
+    return w
+
+
+def get_own(s: Session, org: Organization, address: str) -> Wallet:
+    w = s.get(Wallet, address)
+    if w is None or w.org_id != org.id:
+        raise NotFound("Wallet not found.")
     return w
 
 

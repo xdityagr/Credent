@@ -64,7 +64,9 @@ export function ConnectForSigning() {
   if (!primary) return <p className="text-[13.5px] text-loss-text">Link a wallet in Settings first.</p>;
   if (custodial || ready) return null;
 
-  const options = wallets.filter((x) => ["Phantom", "Solflare"].includes(x.adapter.name));
+  const options = wallets.filter(
+    (x) => x.readyState === WalletReadyState.Installed || x.readyState === WalletReadyState.Loadable,
+  );
   return (
     <div className="rounded-[18px] border border-line-strong bg-white/[0.03] p-4">
       <p className="text-[13.5px] text-ink-2">
@@ -79,15 +81,17 @@ export function ConnectForSigning() {
           .
         </p>
       )}
+      {!connected && options.length === 0 && (
+        <p className="mt-2 text-[13px] text-ink-3">No Solana wallet detected in this browser. Install Phantom or Solflare, or allow it on this site.</p>
+      )}
       {!connected && (
         <div className="mt-3 flex flex-wrap gap-2">
           {options.map((x) => {
-            const installed = x.readyState === WalletReadyState.Installed || x.readyState === WalletReadyState.Loadable;
             return (
               <button
                 key={x.adapter.name}
                 type="button"
-                disabled={!installed || connecting}
+                disabled={connecting}
                 onClick={() => {
                   setError(null);
                   setTarget(x.adapter.name);
@@ -96,7 +100,7 @@ export function ConnectForSigning() {
                 className="inline-flex items-center gap-2 rounded-full border border-line-strong px-3 py-1.5 text-[13px] text-ink transition hover:bg-white/[0.06] disabled:opacity-50"
               >
                 <img src={x.adapter.icon} alt="" className="size-4 rounded" />
-                {installed ? (connecting && target === x.adapter.name ? "Connecting…" : `Connect ${x.adapter.name}`) : `${x.adapter.name} not installed`}
+                {connecting && target === x.adapter.name ? "Connecting…" : `Connect ${x.adapter.name}`}
               </button>
             );
           })}

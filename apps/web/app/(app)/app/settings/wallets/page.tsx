@@ -2,9 +2,9 @@
 
 import { Star, Trash2 } from "lucide-react";
 import { useState } from "react";
+import { WalletIdentity } from "@/components/app/wallet-identity";
 import { WalletLink } from "@/components/app/wallet-link";
 import {
-  Address,
   Button,
   Dialog,
   DialogClose,
@@ -43,14 +43,14 @@ export default function WalletSettings() {
           {me.wallets.map((w) => (
             <li key={w.address} className="flex flex-wrap items-center gap-x-4 gap-y-2 py-4">
               <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Address value={w.address} head={6} tail={6} className="text-[13.5px] text-ink" />
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                  <WalletIdentity wallet={w} />
                   {w.is_primary && <StatusPill tone="public">Primary</StatusPill>}
                   <StatusPill tone={w.kind === "CUSTODIAL" ? "private" : "neutral"} icon={false}>
                     {w.kind === "CUSTODIAL" ? "Custodial" : "Self-custody"}
                   </StatusPill>
                 </div>
-                <div className="mt-1 text-[12.5px] text-ink-3">Linked {date(w.verified_at)}</div>
+                <div className="mt-1.5 pl-12 text-[12.5px] text-ink-3">Linked {date(w.verified_at)}</div>
               </div>
               <div className="flex gap-1">
                 {!w.is_primary && (

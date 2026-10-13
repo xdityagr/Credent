@@ -119,7 +119,7 @@ export function useWalletMutations() {
   return {
     challenge: useMutation({ mutationFn: (address: string) => post<{ message: string }>("/wallets/challenge", { address }) }),
     verify: useMutation({
-      mutationFn: (v: { address: string; signature: string }) => post<Wallet>("/wallets/verify", v),
+      mutationFn: (v: { address: string; signature: string; provider?: string }) => post<Wallet>("/wallets/verify", v),
       onSuccess: refresh,
     }),
     custodial: useMutation({ mutationFn: () => post<Wallet>("/wallets/custodial"), onSuccess: refresh }),
@@ -128,6 +128,10 @@ export function useWalletMutations() {
       onSuccess: refresh,
     }),
     remove: useMutation({ mutationFn: (address: string) => del(`/wallets/${address}`), onSuccess: refresh }),
+    label: useMutation({
+      mutationFn: (v: { address: string; provider: string }) => patch<Wallet>(`/wallets/${v.address}`, { provider: v.provider }),
+      onSuccess: refresh,
+    }),
   };
 }
 
