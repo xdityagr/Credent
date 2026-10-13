@@ -31,3 +31,12 @@ def db(app):
 
     with Session(app.state.engine, expire_on_commit=False) as s:
         yield s
+
+
+@pytest.fixture(autouse=True)
+def _fresh_rate_limits():
+    """The limiter is process-global; each test starts with a clean window."""
+    from credent.api.deps import limiter
+
+    limiter._hits.clear()
+    yield

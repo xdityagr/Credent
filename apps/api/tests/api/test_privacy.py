@@ -24,7 +24,14 @@ def numbers_in(obj, out: set[int]) -> set[int]:
     return out
 
 
-def test_public_surface_has_no_private_data(client, app, ctx, db):
+def test_public_surface_has_no_private_data(client, app, ctx, db, monkeypatch):
+    # Fixed revenue seeds: with random ones, a payment occasionally equals some public
+    # number by coincidence (e.g. a $35.00 payment vs advance_bps=3500) and the crawl flakes.
+    import random
+
+    from credent.services import revenue
+
+    monkeypatch.setattr(revenue.secrets, "randbits", random.Random(20261013).getrandbits)
     sim.reset(app.state.engine, ctx, warmup_days=0)
     sim.advance(db, ctx, 56)
 
