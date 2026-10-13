@@ -347,6 +347,9 @@ body {
 }
 
 /* custom cursor: hide the system one only where ours is mounted */
+html.has-cursor [data-magnetic] {
+  will-change: translate;
+}
 html.has-cursor,
 html.has-cursor * {
   cursor: none !important;

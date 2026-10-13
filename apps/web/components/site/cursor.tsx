@@ -31,34 +31,89 @@ export function Cursor() {
     // enabling is a subscription to an external capability (pointer type)
     const raf = requestAnimationFrame(() => setEnabled(true));
 
+    // Magnetic pull, eased in a rAF loop. Each element's resting rect is its
+    // measured rect minus the offset we applied, so the pull never feeds back on
+    // itself; a release margin keeps the edge from flickering grab/release.
+    const STRENGTH_X = 0.2;
+    const STRENGTH_Y = 0.28;
+    const MARGIN = 18;
+    const EASE = 0.16;
+    const offsets = new Map<HTMLElement, { x: number; y: number }>();
     let magnet: HTMLElement | null = null;
-    const release = () => {
-      if (magnet) magnet.style.translate = "";
-      magnet = null;
+    let px = -1e4;
+    let py = -1e4;
+    let frame = 0;
+
+    const home = (el: HTMLElement) => {
+      const r = el.getBoundingClientRect();
+      const o = offsets.get(el) ?? { x: 0, y: 0 };
+      return { left: r.left - o.x, top: r.top - o.y, width: r.width, height: r.height };
+    };
+    const inside = (el: HTMLElement, margin: number) => {
+      const h = home(el);
+      return px >= h.left - margin && px <= h.left + h.width + margin && py >= h.top - margin && py <= h.top + h.height + margin;
+    };
+    const tick = () => {
+      frame = 0;
+      if (magnet && !magnet.isConnected) magnet = null;
+      if (magnet && !inside(magnet, MARGIN)) magnet = null;
+      let moving = false;
+      if (magnet && !offsets.has(magnet)) offsets.set(magnet, { x: 0, y: 0 });
+      for (const [el, o] of offsets) {
+        let tx = 0;
+        let ty = 0;
+        if (el === magnet) {
+          const h = home(el);
+          tx = (px - (h.left + h.width / 2)) * STRENGTH_X;
+          ty = (py - (h.top + h.height / 2)) * STRENGTH_Y;
+        }
+        o.x += (tx - o.x) * EASE;
+        o.y += (ty - o.y) * EASE;
+        if (el !== magnet && Math.abs(o.x) < 0.05 && Math.abs(o.y) < 0.05) {
+          el.style.translate = "";
+          offsets.delete(el);
+          continue;
+        }
+        el.style.translate = `${o.x.toFixed(2)}px ${o.y.toFixed(2)}px`;
+        moving = true;
+      }
+      if (moving) frame = requestAnimationFrame(tick);
+    };
+    const kick = () => {
+      if (!frame) frame = requestAnimationFrame(tick);
     };
 
+    let lastLabel: string | null = null;
+    let lastHot = false;
+    let shown = false;
     const onMove = (e: PointerEvent) => {
       x.set(e.clientX);
       y.set(e.clientY);
-      setVisible(true);
-      const t = e.target as Element | null;
-      const labelled = t?.closest<HTMLElement>("[data-cursor]");
-      setLabel(labelled?.dataset.cursor || null);
-      const m = t?.closest<HTMLElement>("[data-magnetic]");
-      const interactive = t?.closest("a,button,[role=button],input,select,textarea,label,summary");
-      setHot(Boolean(m || interactive));
-      if (m !== magnet) release();
-      if (m) {
-        magnet = m;
-        const r = m.getBoundingClientRect();
-        const dx = e.clientX - (r.left + r.width / 2);
-        const dy = e.clientY - (r.top + r.height / 2);
-        m.style.translate = `${dx * 0.22}px ${dy * 0.3}px`;
+      px = e.clientX;
+      py = e.clientY;
+      if (!shown) {
+        shown = true;
+        setVisible(true);
       }
+      const t = e.target as Element | null;
+      const nextLabel = t?.closest<HTMLElement>("[data-cursor]")?.dataset.cursor || null;
+      if (nextLabel !== lastLabel) setLabel((lastLabel = nextLabel));
+      const m = t?.closest<HTMLElement>("[data-magnetic]") ?? null;
+      const interactive = Boolean(m || t?.closest("a,button,[role=button],input,select,textarea,label,summary"));
+      if (interactive !== lastHot) setHot((lastHot = interactive));
+      if (m && m !== magnet) magnet = m;
+      kick();
     };
     const onLeave = () => {
+      shown = false;
       setVisible(false);
-      release();
+      magnet = null;
+      kick();
+    };
+    const release = () => {
+      if (frame) cancelAnimationFrame(frame);
+      for (const el of offsets.keys()) el.style.translate = "";
+      offsets.clear();
     };
     const onDown = () => setDown(true);
     const onUp = () => setDown(false);
@@ -67,6 +122,7 @@ export function Cursor() {
     document.addEventListener("pointerleave", onLeave);
     window.addEventListener("pointerdown", onDown);
     window.addEventListener("pointerup", onUp);
+    window.addEventListener("scroll", kick, { passive: true });
     return () => {
       cancelAnimationFrame(raf);
       root.classList.remove("has-cursor");
@@ -75,6 +131,7 @@ export function Cursor() {
       document.removeEventListener("pointerleave", onLeave);
       window.removeEventListener("pointerdown", onDown);
       window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("scroll", kick);
     };
   }, [reduce, x, y]);
 
