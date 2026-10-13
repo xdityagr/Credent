@@ -136,49 +136,68 @@ The live site runs on **Solana devnet**: every money movement is a real public t
 - Signing up creates a real account, which locks the demo reset. Do that step last-minute, or reuse one account.
 - Do one full dry run.
 
-**Flow**
+**Flow** (talking points, not a script; say them in your own words)
 
-1. **Landing hero.** Hover the card, point at the **"Live on Solana devnet"** badge, scroll the sections.
-   > "Credent lets a business borrow against its revenue without ever revealing it. It proves revenue with zero knowledge, repays automatically from incoming sales, and the whole loan book lives on Solana devnet, where anyone can audit it."
+1. **Landing hero.** Hover the card, point at the **"Live on Solana devnet"** badge, scroll.
+   - Borrow against revenue you prove but never reveal.
+   - Repaid automatically from incoming sales.
+   - The whole loan book is public on Solana devnet.
 
 2. **/pools → open a pool → capital stack, reserves badge.**
-   > "Lenders run their own pools with their own terms. Every pool has two slices: junior, the manager's own money, which takes losses first, and senior, outside lenders on a fixed rate, protected by junior. This badge compares the pool's vault on Solana with our books, and they match."
+   - Lenders run their own pools with their own terms.
+   - Junior = manager's money, loses first; senior = fixed rate, protected.
+   - The vault on Solana matches the books.
 
-3. **/explorer → Verify the entire chain → click an anchored block's Solana link.**
-   > "Every pool, loan, repayment and loss is recorded here, chained together so history can't be edited. Blocks are stamped onto Solana devnet; this link opens the real transaction. And notice: no company names, no revenue. Borrowers only appear as pseudonyms."
+3. **/explorer → Verify the entire chain → open an anchored block on Solana.**
+   - Every loan, repayment and loss is chained, so it can't be edited.
+   - Blocks are stamped on Solana devnet; here's the real transaction.
+   - No names, no revenue: only pseudonyms.
 
-4. **Sign up → verification email in Gmail → onboarding (company, wallet).**
-   > "These are real accounts: email verification, a company profile, and a wallet. If a business doesn't have Phantom or Solflare, Credent gives it a custodial wallet in one click, so nobody gets stuck on crypto setup."
+4. **Sign up → Gmail verification → onboarding.**
+   - Real accounts: verified email, company profile, wallet.
+   - No crypto wallet? One-click custodial wallet.
 
-5. **Wallet drawer → Get test cUSD → click the transaction link (opens on Explorer).**
-   > "cUSD is a real SPL token on Solana devnet, our stand-in for USDC. Here's the mint, live on the public chain. Credent pays every network fee, so users never need to hold SOL."
+5. **Wallet drawer → Get test cUSD → open the tx on Explorer.**
+   - cUSD is a real SPL token on devnet, standing in for USDC.
+   - Credent pays all fees; users never need SOL.
 
-6. **Revenue → Connect → Stripe → Sandbox account → payments table.**
-   > "The business connects where its revenue comes from: Stripe, signed processor receipts, or a demo business. Credent reads 90 days of charges, including invoices, customers, refunds and failed cards, and only the business can ever see this."
+6. **Revenue → Stripe → Sandbox account → payments table.**
+   - Connect Stripe, signed receipts, or a demo business.
+   - 90 days of invoices and customers, visible only to the business.
 
-7. **Proofs → generate → open the proof → Verify.**
-   > "Now the business proves one statement: its 90-day revenue was at least this much. That's a real zero-knowledge proof, generated in seconds. Anyone can verify it, and nobody learns the actual numbers."
+7. **Proofs → generate → open → Verify.**
+   - Proves one thing: revenue ≥ X.
+   - A real zero-knowledge proof, made in seconds.
+   - Anyone can verify it; nobody sees the numbers.
 
-8. **Pools → pick a pool → Apply.**
-   > "The business applies with the proof attached automatically. The pool lends a fixed share of proven revenue, its advance rate, so the maximum loan is clear before applying."
+8. **Pools → Apply.**
+   - The proof is attached automatically.
+   - Max loan = the pool's advance rate × proven revenue.
 
-9. **Lender window → Review queue → open the application → Approve.**
-   > "On the lender side, this is everything they see: a pseudonym, a valid proof, and the borrower's track record on Credent. Not their revenue, not their customers. That's enough to make a credit decision, so they approve."
+9. **Lender window → Review queue → Approve.**
+   - The lender sees a pseudonym, the proof and the track record.
+   - Never the revenue or the customers.
 
-10. **Lender → Funds → deposit (pending → confirmed, open the tx), then My pools / create-pool wizard.**
-    > "Lenders put in capital with a signed deposit; it lands on devnet in a few seconds and the vault updates. Creating a pool is a short wizard: rate, advance, loan length and the first-loss they hold, with a live preview of the capital stack."
+10. **Lender → Funds → deposit (pending → confirmed), then the create-pool wizard.**
+    - A signed deposit lands on devnet in seconds.
+    - Lenders set rate, advance, term and first-loss.
 
-11. **Borrower → Applications → Accept → balance jumps → open the drawdown tx.**
-    > "The business accepts by signing the loan terms. That's its e-signature. Within seconds the loan moves from the pool's vault to its wallet as a real devnet transaction."
+11. **Borrower → Accept → balance jumps → open the drawdown tx.**
+    - Signing the terms is the e-signature.
+    - The loan moves vault → wallet on devnet in seconds.
 
-12. **Loans → loan detail (lockbox, schedule, weekly strip).**
-    > "Now the lockbox takes over. Every customer payment repays this week's installment first, and the rest goes to the business. If three weeks in a row come up short, the loan defaults, and junior absorbs the loss before any senior lender."
+12. **Loans → loan detail (lockbox, schedule).**
+    - Each customer payment pays this week's installment first.
+    - 3 short weeks = default; junior takes the loss first.
 
-13. **Payments (demo borrower with history).**
-    > "Here's that in practice: every customer payment split into what was swept for the loan and what was released to the business. Weekly settlement then moves the installments to the pool on-chain and pays senior, then junior."
+13. **Payments (demo borrower).**
+    - Every payment is split into swept and released.
+    - Weekly settlement pays the pool on-chain: senior, then junior.
 
-14. **Explorer → the new loan and installments appear.**
-    > "And it all lands on the public book: the loan, every installment, every settlement, verifiable by anyone on Solana devnet. The business's revenue never left the proof. Private credit, public book."
+14. **Explorer → the new loan appears.**
+    - The loan and installments are public and verifiable on devnet.
+    - The revenue never left the proof.
+    - Private credit, public book.
 
 **Editing tips**
 - Speed up waits (email arriving, proofs, devnet confirmations) 2–4×.
