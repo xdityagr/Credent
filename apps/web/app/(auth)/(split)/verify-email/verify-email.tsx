@@ -62,13 +62,7 @@ function CheckInbox({ initialEmail }: { initialEmail: string }) {
         We sent a confirmation link to {email ? <span className="text-ink">{email}</span> : "your email address"}. Open it on
         this device to activate your account.
       </p>
-      <p className="text-[13.5px] text-ink-3">
-        Running locally? Emails land in Mailpit at{" "}
-        <a href="http://localhost:8025" target="_blank" rel="noreferrer" className="text-ink-2 underline underline-offset-4 hover:text-ink">
-          localhost:8025
-        </a>
-        .
-      </p>
+      <p className="text-[13.5px] text-ink-3">Not there after a minute? Check your spam folder, or send it again below.</p>
       <ResendForm initialEmail={email} />
       <p className="text-[14px]">
         Wrong address?{" "}
