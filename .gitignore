@@ -11,4 +11,3 @@ __pycache__/
 .hypothesis/
 apps/api/keys/
 apps/api/uploads/
-.claude/
