@@ -3,6 +3,7 @@
 import json
 
 from fastapi import APIRouter, Request
+from solders.keypair import Keypair
 from sqlmodel import select
 from sse_starlette.sse import EventSourceResponse
 
@@ -29,6 +30,9 @@ def status(s: SessionDep, ctx: CtxDep, chain: ChainDep, request: Request) -> dic
             "seeded": s.exec(select(Pool)).first() is not None, "seeding": st.seeding, "seed_error": st.seed_error,
             "clock_mode": ctx.settings.clock_mode, "seconds_per_day": ctx.settings.seconds_per_day,
             "sim_enabled": ctx.settings.sim_enabled, "prover": prover, "chain": public.chain_info(chain),
+            # the ledger-anchoring wallet pays for its own memo transactions on devnet
+            "anchor": {"enabled": ctx.settings.anchor_enabled,
+                       "address": str(Keypair.from_seed(bytes(ctx.keys.get("anchor"))).pubkey())},
             "notary_pubkey": pubkey_b58(ctx.keys.get("notary")),
             "processor_pubkey": pubkey_b58(ctx.keys.get("processor"))}
 
