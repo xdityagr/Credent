@@ -31,6 +31,8 @@ services:
         sync: false
       - key: MAIL_FROM            # e.g. Credent <getcredent@gmail.com>
         sync: false
+      - key: BREVO_API_KEY        # Render's free tier blocks SMTP; email goes out over Brevo's HTTPS API
+        sync: false
       - key: CHAIN_MODE
         value: local
       - key: SIM_ENABLED

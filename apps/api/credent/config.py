@@ -30,6 +30,8 @@ class Settings(BaseSettings):
     smtp_password: str = ""
     smtp_tls: bool = False
     mail_from: str = "Credent <no-reply@credent.local>"
+    # Email over HTTPS (Brevo). Set this where outbound SMTP is blocked, e.g. Render's free tier.
+    brevo_api_key: str = ""
 
     # zk prover
     prover: Literal["docker", "local"] = "docker"

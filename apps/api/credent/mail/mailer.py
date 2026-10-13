@@ -1,7 +1,9 @@
 """Transactional email: queued in EmailOutbox inside the caller's transaction, sent by a job.
 
 Local development delivers to Mailpit (SMTP :1025, inbox at http://localhost:8025);
-set SMTP_* in .env for real delivery (Gmail app password, Resend, ...).
+set SMTP_* in .env for real delivery (Gmail app password, ...). Hosts that block
+outbound SMTP (Render's free tier) send through Brevo's HTTPS API instead
+(BREVO_API_KEY).
 
 Emails follow the site: a pure-black canvas, a raised card with an ember
 (borrower / private) or horizon (lender / public) glow, a serif headline, a
@@ -11,9 +13,13 @@ because mail clients block or break images (SVG, data URIs, often CID).
 """
 
 import html as _html
+import logging
 import smtplib
+from datetime import timedelta
 from email.message import EmailMessage
-from email.utils import formatdate, make_msgid
+from email.utils import formatdate, make_msgid, parseaddr
+
+import httpx
 from sqlmodel import Session, col, select
 
 from credent.auth.security import now
@@ -245,19 +251,63 @@ def _message(settings: Settings, r: EmailOutbox) -> EmailMessage:
     return msg
 
 
-def send_pending(s: Session, settings: Settings, limit: int = 20) -> int:
+log = logging.getLogger(__name__)
+BREVO_URL = "https://api.brevo.com/v3/smtp/email"
+
+
+def _fail(r: EmailOutbox, error: str) -> None:
+    r.attempts += 1
+    r.error = error[:300]
+    r.status = "FAILED" if r.attempts >= 10 else "PENDING"
+
+
+def _send_brevo(s: Session, settings: Settings, rows: list[EmailOutbox], http: httpx.Client | None = None) -> int:
+    name, address = parseaddr(settings.mail_from)
+    sent = 0
+    with (http or httpx.Client(timeout=20)) as client:
+        for r in rows:
+            try:
+                resp = client.post(BREVO_URL, headers={"api-key": settings.brevo_api_key, "accept": "application/json"},
+                                   json={"sender": {"name": name or "Credent", "email": address},
+                                         "to": [{"email": r.to}], "subject": r.subject,
+                                         "htmlContent": r.html, "textContent": r.text})
+                if resp.status_code < 300:
+                    r.status, r.sent_at, r.error = "SENT", now(), None
+                    sent += 1
+                else:
+                    msg = resp.json().get("message", resp.text) if resp.content else str(resp.status_code)
+                    _fail(r, f"Brevo {resp.status_code}: {msg}")
+                    log.warning("email to %s not sent: %s", r.to, r.error)
+            except httpx.HTTPError as err:
+                _fail(r, f"Brevo unreachable: {err}")
+                log.warning("email to %s not sent: %s", r.to, r.error)
+            s.add(r)
+    s.commit()
+    return sent
+
+
+def send_pending(s: Session, settings: Settings, limit: int = 20, http: httpx.Client | None = None) -> int:
     rows = s.exec(select(EmailOutbox).where(EmailOutbox.status == "PENDING")
                   .order_by(col(EmailOutbox.id)).limit(limit)).all()
+    if settings.brevo_api_key:
+        # Mail that gave up only because SMTP was blocked gets another chance over HTTPS.
+        rows += s.exec(select(EmailOutbox).where(EmailOutbox.status == "FAILED",
+                                                 col(EmailOutbox.error).startswith("SMTP"),
+                                                 EmailOutbox.created_at > now() - timedelta(days=1))
+                       .limit(limit)).all()
+        for r in rows:
+            r.attempts = min(r.attempts, 5) if r.status == "FAILED" else r.attempts
+        return _send_brevo(s, settings, rows, http) if rows else 0
     if not rows:
         return 0
     sent = 0
     try:
         smtp = smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=10)
     except OSError as err:
+        log.warning("SMTP %s:%s unreachable (%s); %d emails waiting. If the host blocks SMTP, set BREVO_API_KEY.",
+                    settings.smtp_host, settings.smtp_port, err, len(rows))
         for r in rows:
-            r.attempts += 1
-            r.error = f"SMTP unreachable: {err}"
-            r.status = "FAILED" if r.attempts >= 10 else "PENDING"
+            _fail(r, f"SMTP unreachable: {err}")
             s.add(r)
         s.commit()
         return 0

@@ -54,7 +54,7 @@ macOS/Linux: `scripts/setup.sh`, `scripts/dev.sh`.
 
 ## Deploy (Render + Vercel)
 
-**API on Render.** `render.yaml` defines the API (Docker image with the Noir/Barretenberg prover built in) and its Postgres. In Render: **New → Blueprint**, pick this repo, and fill in `APP_URL`, `SMTP_USER`, `SMTP_PASSWORD` and `MAIL_FROM`. `KEY_SECRET` is generated for you. Every custody, notary and anchor key derives from it, so keep it stable.
+**API on Render.** `render.yaml` defines the API (Docker image with the Noir/Barretenberg prover built in) and its Postgres. In Render: **New → Blueprint**, pick this repo, and fill in `APP_URL`, `SMTP_USER`, `SMTP_PASSWORD` and `MAIL_FROM`. `KEY_SECRET` is generated for you. Render's free tier blocks outbound SMTP, so also set `BREVO_API_KEY`: email then goes out over Brevo's HTTPS API, and the `MAIL_FROM` address must be a verified sender in Brevo. Every custody, notary and anchor key derives from it, so keep it stable.
 
 **Web on Vercel.** Import the repo with **Root Directory** `apps/web`, then set these environment variables:
 - `API_URL`: your Render URL, e.g. `https://credent-api.onrender.com`;
