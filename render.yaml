@@ -1,0 +1,50 @@
+# Render blueprint: the Credent API (FastAPI + built-in ZK prover) and its Postgres.
+# Render dashboard → New → Blueprint → pick this repo. Fill the `sync: false` values when prompted.
+services:
+  - type: web
+    name: credent-api
+    runtime: docker
+    dockerfilePath: ./apps/api/Dockerfile
+    dockerContext: .
+    plan: free            # free sleeps after 15 min idle (first request ~1 min); use starter for a live demo
+    region: singapore
+    healthCheckPath: /public/status
+    autoDeploy: true
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: credent-db
+          property: connectionString
+      - key: KEY_SECRET           # custody, notary and anchor keys derive from this; never change it
+        generateValue: true
+      - key: APP_URL              # your Vercel URL, used in email links, e.g. https://credent.vercel.app
+        sync: false
+      - key: SMTP_HOST
+        value: smtp.gmail.com
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_TLS
+        value: "true"
+      - key: SMTP_USER            # the Gmail address
+        sync: false
+      - key: SMTP_PASSWORD        # the Gmail app password
+        sync: false
+      - key: MAIL_FROM            # e.g. Credent <getcredent@gmail.com>
+        sync: false
+      - key: CHAIN_MODE
+        value: local
+      - key: SIM_ENABLED
+        value: "true"
+      - key: SEED_DEMO
+        value: "true"
+      - key: CLOCK_MODE
+        value: accelerated
+      - key: SECONDS_PER_DAY
+        value: "120"
+
+databases:
+  - name: credent-db
+    plan: free            # free Postgres expires after 30 days; basic-256mb keeps it
+    region: singapore
+    databaseName: credent
+    user: credent

@@ -72,7 +72,7 @@ def create_app(settings: Settings | None = None, prover: Prover | None = None, c
         init_db(engine)
     else:
         migrate(url)
-    ctx = ctx or Ctx(settings=settings, keys=KeyStore(settings.keys_dir), prover=prover or get_prover(settings))
+    ctx = ctx or Ctx(settings=settings, keys=KeyStore(settings.keys_dir, settings.key_secret), prover=prover or get_prover(settings))
     background = settings.background_jobs if background is None else background
 
     @asynccontextmanager

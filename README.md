@@ -52,6 +52,19 @@ macOS/Linux: `scripts/setup.sh`, `scripts/dev.sh`.
 | `local` (default) | Real SPL Token, ATA and Memo programs in an in-process Solana VM (LiteSVM). Phantom/Solflare signatures work. Balances are rebuilt from the database on restart. |
 | `devnet` | Solana devnet with explorer links. Fund the fee payer once at https://faucet.solana.com: `cd apps/api && uv run python ../../scripts/devnet.py status` prints its address, `... devnet.py smoke` runs a round trip. |
 
+## Deploy (Render + Vercel)
+
+**API on Render.** `render.yaml` defines the API (Docker image with the Noir/Barretenberg prover built in) and its Postgres. In Render: **New → Blueprint**, pick this repo, and fill in `APP_URL`, `SMTP_USER`, `SMTP_PASSWORD` and `MAIL_FROM`. `KEY_SECRET` is generated for you. Every custody, notary and anchor key derives from it, so keep it stable.
+
+**Web on Vercel.** Import the repo with **Root Directory** `apps/web`, then set these environment variables:
+- `API_URL`: your Render URL, e.g. `https://credent-api.onrender.com`;
+- `NEXT_PUBLIC_SOLANA_RPC_URL`: `https://api.devnet.solana.com`;
+- `ENABLE_EXPERIMENTAL_COREPACK`: `1`, so Vercel uses the pinned pnpm.
+
+The browser only talks to same-origin `/api/*`, which Next rewrites to the API, so no CORS setup is needed.
+
+Finally, set `APP_URL` on Render to the Vercel URL so email links point at the live site.
+
 ## Repository
 ```
 apps/api/            FastAPI (Python): accounts, orgs, wallets, pools, applications, loans,

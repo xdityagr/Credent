@@ -1,0 +1,11 @@
+**/node_modules
+**/.next
+**/.venv
+**/__pycache__
+**/.pytest_cache
+.git
+.env
+apps/api/keys
+apps/api/data
+apps/web
+circuits/revenue_proof/target

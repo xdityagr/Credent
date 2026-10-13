@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import Literal
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 API_ROOT = Path(__file__).resolve().parent.parent
@@ -13,6 +14,7 @@ class Settings(BaseSettings):
     # storage
     data_dir: Path = API_ROOT / "data"  # uploads, sqlite fallback
     keys_dir: Path = API_ROOT / "keys"  # long-lived secrets (custody master, notary); survives world resets
+    key_secret: str = ""  # if set, all keys derive from it instead of keys_dir (hosts with ephemeral disks)
     database_url: str = "postgresql+psycopg://credent:credent@localhost:5434/credent"
 
     # web
@@ -46,6 +48,15 @@ class Settings(BaseSettings):
     seconds_per_day: float = 120.0
     seed_demo: bool = True
     background_jobs: bool = True
+
+    @field_validator("database_url")
+    @classmethod
+    def _psycopg_scheme(cls, v: str) -> str:
+        """Hosts hand out postgres:// URLs; SQLAlchemy needs the psycopg (v3) driver named."""
+        for prefix in ("postgres://", "postgresql://"):
+            if v.startswith(prefix):
+                return "postgresql+psycopg://" + v[len(prefix):]
+        return v
 
     def db_url(self) -> str:
         if self.database_url.startswith("sqlite") and "///" in self.database_url:

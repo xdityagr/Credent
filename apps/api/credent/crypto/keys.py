@@ -2,6 +2,7 @@
 
 import base64
 import binascii
+import hashlib
 from pathlib import Path
 
 import base58
@@ -10,12 +11,20 @@ from nacl.signing import SigningKey, VerifyKey
 
 
 class KeyStore:
-    """Persists one 32-byte seed per named key under `dir`."""
+    """One 32-byte seed per named key.
 
-    def __init__(self, dir: Path | str):
+    With `secret` set (KEY_SECRET in production), every key is derived from it,
+    so hosts with ephemeral disks keep the same custody, notary and anchor keys
+    across deploys. Otherwise seeds are generated once and persisted under `dir`.
+    """
+
+    def __init__(self, dir: Path | str, secret: str = ""):
         self.dir = Path(dir)
+        self.secret = secret
 
     def get(self, name: str) -> SigningKey:
+        if self.secret:
+            return SigningKey(hashlib.sha256(f"credent-key:{name}:{self.secret}".encode()).digest())
         path = self.dir / f"{name}.key"
         if path.exists():
             return SigningKey(bytes.fromhex(path.read_text().strip()))
